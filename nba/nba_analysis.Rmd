@@ -30,12 +30,17 @@ Excel technique a given dplyr/ggplot2 step replaces.
 ```{r load-data}
 nba <- read.csv("/tmp/clean/nba_clean.csv", stringsAsFactors = FALSE)
 
-# Two calculated fields mirrored from the Excel "Raw Data" helper columns:
-#   PPG        = PTS / G                          (Excel: IF-wrapped division, avoids #DIV/0!)
-#   PrimaryPos = text before the hyphen in Pos     (Excel: LEFT/FIND on combo listings like "SG-SF")
+# Calculated fields mirrored from the Excel "Raw Data" helper columns:
+#   PPG/RPG/APG = PTS, TRB, AST each divided by G   (Excel: IF-wrapped division, avoids #DIV/0!)
+#   PrimaryPos  = text before the hyphen in Pos      (Excel: LEFT/FIND on combo listings like "SG-SF")
+# TRB and AST in the source file are SEASON TOTALS, not per-game rates -- averaging them
+# directly (like PPG) would mix two different scales in the same chart, so RPG/APG exist
+# for the same reason the Excel workbook adds RPG/APG helper columns instead of using TRB/AST.
 nba <- nba %>%
   mutate(
     PPG = if_else(G > 0, PTS / G, NA_real_),
+    RPG = if_else(G > 0, TRB / G, NA_real_),
+    APG = if_else(G > 0, AST / G, NA_real_),
     PrimaryPos = sub("-.*", "", Pos)
   )
 
@@ -59,8 +64,8 @@ pos_summary <- nba %>%
   summarise(
     Players = n(),
     Avg_PPG = mean(PPG, na.rm = TRUE),
-    Avg_TRB = mean(TRB, na.rm = TRUE),
-    Avg_AST = mean(AST, na.rm = TRUE),
+    Avg_RPG = mean(RPG, na.rm = TRUE),
+    Avg_APG = mean(APG, na.rm = TRUE),
     Avg_FG_pct = mean(FG., na.rm = TRUE),
     .groups = "drop"
   ) %>%
@@ -72,15 +77,15 @@ pos_summary
 
 ```{r position-chart}
 pos_long <- pos_summary %>%
-  select(PrimaryPos, Avg_PPG, Avg_TRB, Avg_AST) %>%
+  select(PrimaryPos, Avg_PPG, Avg_RPG, Avg_APG) %>%
   pivot_longer(-PrimaryPos, names_to = "Stat", values_to = "Value")
 
 ggplot(pos_long, aes(x = PrimaryPos, y = Value, fill = Stat)) +
   geom_col(position = "dodge") +
-  scale_fill_manual(values = c("Avg_PPG" = "#C0392B", "Avg_AST" = "#2980B9", "Avg_TRB" = "#27AE60"),
-                     labels = c("Avg_AST" = "Assists", "Avg_PPG" = "Points", "Avg_TRB" = "Rebounds")) +
+  scale_fill_manual(values = c("Avg_PPG" = "#C0392B", "Avg_APG" = "#2980B9", "Avg_RPG" = "#27AE60"),
+                     labels = c("Avg_APG" = "Assists", "Avg_PPG" = "Points", "Avg_RPG" = "Rebounds")) +
   labs(title = "Average Points / Rebounds / Assists by Position",
-       subtitle = "2008–2017 seasons combined", x = "Position", y = "Per-game average", fill = NULL) +
+       subtitle = "2008–2017 seasons combined, per-game rates", x = "Position", y = "Per-game average", fill = NULL) +
   theme_minimal(base_size = 13)
 ```
 
