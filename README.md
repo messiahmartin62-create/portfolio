@@ -1,5 +1,7 @@
 # Data Analyst Portfolio
 
+**[View the live portfolio site →](https://messiahmartin62-create.github.io/portfolio/)** (charts, descriptions, and direct links to each report and workbook — no need to dig through folders)
+
 Four end-to-end analyses, each built twice: once as an Excel workbook (pivot
 tables, live formulas, charts) and once as an R Markdown report (dplyr +
 ggplot2, rendered to HTML). Same underlying public datasets and the same

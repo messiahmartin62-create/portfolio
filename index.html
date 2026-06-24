@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sai — Data Analyst Portfolio</title>
+<style>
+  :root {
+    --ink: #1c2530;
+    --muted: #5b6675;
+    --line: #e3e7ec;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --bg: #fafbfc;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 64px 24px 80px; }
+  header { margin-bottom: 56px; }
+  header h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: -0.02em; }
+  header p.tagline { font-size: 1.05rem; color: var(--muted); margin: 0 0 20px; max-width: 640px; }
+  header .links a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    margin-right: 20px;
+    font-size: 0.95rem;
+  }
+  header .links a:hover { color: var(--accent-dark); text-decoration: underline; }
+  .stack-note {
+    margin-top: 18px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+  }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+    .wrap { padding: 40px 18px 60px; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card img {
+    width: 100%;
+    display: block;
+    border-bottom: 1px solid var(--line);
+    background: #f3f4f6;
+  }
+  .card-body { padding: 20px 22px 22px; flex: 1; display: flex; flex-direction: column; }
+  .card h2 { font-size: 1.2rem; margin: 0 0 8px; }
+  .card p.desc { color: var(--muted); font-size: 0.93rem; margin: 0 0 16px; flex: 1; }
+  .card .tech { font-size: 0.78rem; color: var(--muted); margin: 0 0 16px; }
+  .card .tech span { background: #eef2ff; color: var(--accent-dark); padding: 2px 8px; border-radius: 5px; margin-right: 6px; display: inline-block; margin-bottom: 4px; }
+  .card .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+  }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-dark); }
+  .btn.secondary { background: transparent; color: var(--ink); }
+  .btn.secondary:hover { background: #f1f3f5; }
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Sai — Data Analyst Portfolio</h1>
+    <p class="tagline">
+      Four end-to-end analyses, each built twice: once as an Excel workbook (live formulas,
+      pivot tables, charts) and once as an R Markdown report (dplyr + ggplot2). Same datasets,
+      same analytical logic, two tools — spreadsheet fluency and code-first analysis side by side.
+    </p>
+    <div class="links">
+      <a href="https://github.com/messiahmartin62-create/portfolio">View source on GitHub</a>
+      <a href="mailto:messiahmartin62@gmail.com">messiahmartin62@gmail.com</a>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <div class="card">
+      <img src="images/nba.png" alt="NBA position averages chart">
+      <div class="card-body">
+        <h2>NBA Stat Projections</h2>
+        <p class="desc">
+          Per-game scoring, rebounding, and assist rates by position across 4,669 player-seasons
+          (2008–2017), plus trend lines projecting next-season output for five featured players.
+        </p>
+        <p class="tech"><span>AVERAGEIFS / COUNTIFS</span><span>FORECAST.LINEAR</span><span>dplyr</span><span>ggplot2</span></p>
+        <div class="actions">
+          <a class="btn primary" href="nba/nba_analysis.html">View R Report</a>
+          <a class="btn secondary" href="nba/NBA_Stat_Projections_Portfolio.xlsx">Download Excel</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="images/nfl.png" alt="NFL ATS cover rate by team chart">
+      <div class="card-body">
+        <h2>NFL Betting Trends</h2>
+        <p class="desc">
+          Against-the-spread and over/under outcomes for 2,136 games (2010–2017), broken out by
+          favorite team and spread size, to see which teams and spreads actually beat the line.
+        </p>
+        <p class="tech"><span>Nested IF</span><span>COUNTIFS</span><span>case_when()</span><span>dplyr</span></p>
+        <div class="actions">
+          <a class="btn primary" href="nfl/nfl_analysis.html">View R Report</a>
+          <a class="btn secondary" href="nfl/NFL_Betting_Trends_Portfolio.xlsx">Download Excel</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="images/video-games.png" alt="Critical reception vs commercial success by genre chart">
+      <div class="card-body">
+        <h2>Video Game Sales</h2>
+        <p class="desc">
+          Global sales vs. critic/user reception across 16,717 titles, broken down by genre,
+          platform, publisher, and release year, to see what actually correlates with sales.
+        </p>
+        <p class="tech"><span>SUMIFS</span><span>Pivot Tables</span><span>dplyr</span><span>ggplot2</span></p>
+        <div class="actions">
+          <a class="btn primary" href="video-games/vg_analysis.html">View R Report</a>
+          <a class="btn secondary" href="video-games/Video_Game_Sales_Portfolio.xlsx">Download Excel</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="images/finance.png" alt="Sales by department group chart">
+      <div class="card-body">
+        <h2>Finance &amp; Supply Chain</h2>
+        <p class="desc">
+          Profitability and late-delivery risk across 9,000 order lines, with department-group
+          rollups and a rule-based risk flag (loss-making, late-risk, low-margin, healthy).
+        </p>
+        <p class="tech"><span>MAXIFS</span><span>Multi-tier IF</span><span>case_when()</span><span>dplyr</span></p>
+        <div class="actions">
+          <a class="btn primary" href="finance/finance_analysis.html">View R Report</a>
+          <a class="btn secondary" href="finance/Finance_Supply_Chain_Portfolio.xlsx">Download Excel</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Built with Excel (formulas, pivot tables, charts) and R (dplyr, ggplot2, rmarkdown/knitr).
+    Note: GitHub previews .xlsx files as static data — download and open in Excel or LibreOffice
+    Calc to see live pivot tables, formulas, and charts. Full source, including the R Markdown
+    files, is in the <a href="https://github.com/messiahmartin62-create/portfolio">repo</a>.
+  </footer>
+
+</div>
+</body>
+</html>
