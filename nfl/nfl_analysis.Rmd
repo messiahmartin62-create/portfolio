@@ -1,0 +1,211 @@
+---
+title: "NFL Betting Trends — Against-the-Spread Performance Analysis"
+author: "Sai"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+## Overview
+
+This report analyzes NFL betting lines and final scores (Kaggle: *"NFL scores and betting
+data"*), reconstructing each game's against-the-spread (ATS) and over/under result from
+the raw spread/total lines and the actual final score. It's the R/dplyr companion to an
+Excel workbook covering the same dataset and the same derived columns — the logic below
+is a direct translation of that workbook's `VLOOKUP` + nested-`IF` helper-column chain.
+
+```{r load-data}
+nfl <- read.csv("/tmp/clean/nfl_clean.csv", stringsAsFactors = FALSE)
+glimpse(nfl)
+```
+
+## Team Name → Abbreviation Lookup
+
+`FavoriteTeamID` uses team abbreviations; `HomeTeam`/`AwayTeam` use full names. There's
+no shared key, so a lookup table is required either way. The Excel version uses
+`VLOOKUP` against a "Team Reference" sheet; here the same table is a named R vector
+used inside `recode()` — same join, different syntax. Note two franchises (Rams,
+Chargers) map old *and* new city names to one current abbreviation, because the betting
+data's `FavoriteTeamID` already uses the current code even in old-city seasons —
+the same quirk documented in the Excel workbook's lookup-table comment.
+
+```{r team-lookup}
+team_ref <- c(
+  "Arizona Cardinals" = "ARI", "Atlanta Falcons" = "ATL", "Baltimore Ravens" = "BAL",
+  "Buffalo Bills" = "BUF", "Carolina Panthers" = "CAR", "Chicago Bears" = "CHI",
+  "Cincinnati Bengals" = "CIN", "Cleveland Browns" = "CLE", "Dallas Cowboys" = "DAL",
+  "Denver Broncos" = "DEN", "Detroit Lions" = "DET", "Green Bay Packers" = "GB",
+  "Houston Texans" = "HOU", "Indianapolis Colts" = "IND", "Jacksonville Jaguars" = "JAX",
+  "Kansas City Chiefs" = "KC", "Los Angeles Chargers" = "LAC", "Los Angeles Rams" = "LAR",
+  "Miami Dolphins" = "MIA", "Minnesota Vikings" = "MIN", "New England Patriots" = "NE",
+  "New Orleans Saints" = "NO", "New York Giants" = "NYG", "New York Jets" = "NYJ",
+  "Oakland Raiders" = "OAK", "Philadelphia Eagles" = "PHI", "Pittsburgh Steelers" = "PIT",
+  "San Diego Chargers" = "LAC", "San Francisco 49ers" = "SF", "Seattle Seahawks" = "SEA",
+  "St. Louis Rams" = "LAR", "Tampa Bay Buccaneers" = "TB", "Tennessee Titans" = "TEN",
+  "Washington Redskins" = "WAS"
+)
+```
+
+## Deriving Game Results & ATS Outcome
+
+Same five-step chain as the Excel "Raw Data" helper columns:
+`HomeAbbrev/AwayAbbrev` (lookup) → `FavoriteSide` (is the favorite home or away?) →
+`FavoriteMargin` (the favorite's actual scoring margin, signed) → `ATSResult` (did the
+favorite's margin beat the spread?) → `OUResult` (total points vs. the over/under line).
+`case_when()` is dplyr's nested-`IF` equivalent — each clause is checked top to bottom,
+first match wins, exactly like Excel's nested `IF()`.
+
+```{r derive-results}
+nfl <- nfl %>%
+  mutate(
+    HomeAbbrev = recode(HomeTeam, !!!team_ref),
+    AwayAbbrev = recode(AwayTeam, !!!team_ref),
+    Winner = case_when(
+      HomeScore > AwayScore ~ HomeAbbrev,
+      AwayScore > HomeScore ~ AwayAbbrev,
+      TRUE ~ "Tie"
+    ),
+    HomeMargin = HomeScore - AwayScore,
+    TotalPoints = HomeScore + AwayScore,
+    FavoriteSide = case_when(
+      FavoriteTeamID == HomeAbbrev ~ "Home",
+      FavoriteTeamID == AwayAbbrev ~ "Away",
+      FavoriteTeamID == "PICK" ~ "Pick",
+      TRUE ~ "N/A"
+    ),
+    FavoriteMargin = case_when(
+      FavoriteSide == "Home" ~ as.double(HomeMargin),
+      FavoriteSide == "Away" ~ as.double(-HomeMargin),
+      TRUE ~ NA_real_
+    ),
+    ATSResult = case_when(
+      FavoriteSide == "Pick" ~ "No Line",
+      is.na(FavoriteMargin) ~ "N/A",
+      (FavoriteMargin + SpreadFavorite) > 0 ~ "Favorite Covered",
+      (FavoriteMargin + SpreadFavorite) < 0 ~ "Underdog Covered",
+      TRUE ~ "Push"
+    ),
+    OUResult = case_when(
+      TotalPoints > OverUnderLine ~ "Over",
+      TotalPoints < OverUnderLine ~ "Under",
+      TRUE ~ "Push"
+    )
+  )
+
+nfl %>% select(Season, HomeTeam, AwayTeam, FavoriteSide, ATSResult, OUResult) %>% head(8)
+```
+
+## Season-Level ATS & Over/Under Rates
+
+Mirrors the Excel "League Trends" sheet's `COUNTIFS` (favorite-covers count and
+decided-games count, season by season) — `group_by(Season) %>% summarise()` does both
+counts in one pass instead of one `COUNTIFS` formula per outcome per season.
+
+```{r season-rates}
+season_summary <- nfl %>%
+  group_by(Season) %>%
+  summarise(
+    Games = n(),
+    Favorite_Covers = sum(ATSResult == "Favorite Covered"),
+    Underdog_Covers = sum(ATSResult == "Underdog Covered"),
+    Decided_ATS_Games = Favorite_Covers + Underdog_Covers,
+    Favorite_Cover_Rate = if_else(Decided_ATS_Games == 0, NA_real_, Favorite_Covers / Decided_ATS_Games),
+    Over_Count = sum(OUResult == "Over"),
+    Decided_OU_Games = sum(OUResult %in% c("Over", "Under")),
+    Over_Rate = if_else(Decided_OU_Games == 0, NA_real_, Over_Count / Decided_OU_Games),
+    .groups = "drop"
+  )
+
+season_summary
+```
+
+```{r season-rate-chart}
+ggplot(season_summary, aes(x = Season)) +
+  geom_col(aes(y = Favorite_Cover_Rate), fill = "#7B241C", alpha = 0.85) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray40") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Favorite ATS Cover Rate by Season",
+       subtitle = "Dashed line = break-even (50%); bookmakers price spreads to land near this line",
+       x = "Season", y = "Favorite Cover Rate") +
+  theme_minimal(base_size = 13)
+```
+
+## Per-Team ATS Record (Home + Away Combined)
+
+Mirrors the Excel "Team ATS Records" sheet's three-criteria `COUNTIFS` (team abbreviation
++ home/away side + ATS result), summed across both home and away appearances for each team.
+
+```{r team-records}
+team_records <- bind_rows(
+  nfl %>% filter(FavoriteSide == "Home") %>% transmute(Team = HomeAbbrev, ATSResult),
+  nfl %>% filter(FavoriteSide == "Away") %>% transmute(Team = AwayAbbrev, ATSResult)
+) %>%
+  group_by(Team) %>%
+  summarise(
+    Times_Favored = n(),
+    Covers = sum(ATSResult == "Favorite Covered"),
+    Cover_Rate = Covers / Times_Favored,
+    .groups = "drop"
+  ) %>%
+  filter(Times_Favored >= 20) %>%
+  arrange(desc(Cover_Rate))
+
+team_records
+```
+
+```{r team-chart}
+top_bottom <- bind_rows(slice_head(team_records, n = 8), slice_tail(team_records, n = 8)) %>%
+  mutate(Team = factor(Team, levels = Team))
+
+ggplot(top_bottom, aes(x = Team, y = Cover_Rate, fill = Cover_Rate > 0.5)) +
+  geom_col() +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray30") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c("TRUE" = "#27AE60", "FALSE" = "#C0392B"), guide = "none") +
+  labs(title = "ATS Cover Rate When Favored: Best & Worst 8 Teams (min. 20 games favored)",
+       x = NULL, y = "Cover Rate When Favored") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Spread Size vs. Outcome
+
+```{r spread-distribution}
+nfl %>%
+  filter(!is.na(SpreadFavorite)) %>%
+  mutate(SpreadBucket = cut(abs(SpreadFavorite), breaks = c(0, 3, 6, 9, 14, Inf),
+                             labels = c("0-3", "3-6", "6-9", "9-14", "14+"))) %>%
+  filter(ATSResult %in% c("Favorite Covered", "Underdog Covered")) %>%
+  group_by(SpreadBucket) %>%
+  summarise(Games = n(), Favorite_Cover_Rate = mean(ATSResult == "Favorite Covered"), .groups = "drop") %>%
+  ggplot(aes(x = SpreadBucket, y = Favorite_Cover_Rate)) +
+  geom_col(fill = "#2980B9") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray30") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Favorite Cover Rate by Spread Size",
+       subtitle = "Does covering get easier/harder as the line gets bigger?",
+       x = "Point spread (absolute value)", y = "Favorite Cover Rate") +
+  theme_minimal(base_size = 13)
+```
+
+## Takeaways
+
+Favorite cover rates cluster close to 50% across seasons, which is exactly what an
+efficiently-priced betting market predicts — Vegas sets the line to split action, not
+to be "beatable." The per-team and per-spread-bucket splits show some dispersion, but
+none of the deviations here are large enough (or based on enough games) to read as a
+reliable, repeatable edge.
+
+---
+*Data source: Kaggle — "NFL scores and betting data."*

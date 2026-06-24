@@ -1,0 +1,159 @@
+---
+title: "Video Game Sales — Genre, Platform & Critical Reception Analysis"
+author: "Sai"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+```
+
+## Overview
+
+This report analyzes ~16,700 game releases from the Kaggle dataset *"Video Game Sales
+with Ratings"* (Vgchartz sales data merged with Metacritic critic/user scores). It's the
+R/dplyr companion to an Excel workbook covering the same dataset — the genre rollups and
+best-seller logic below mirror that workbook's `COUNTIF` / `SUMIF` / `AVERAGEIFS` /
+`MAXIFS` chain.
+
+```{r load-data}
+vg <- read.csv("/tmp/clean/vg_clean.csv", stringsAsFactors = FALSE)
+glimpse(vg)
+```
+
+## Genre Insights
+
+Excel computes, per genre: game count (`COUNTIF`), total global sales (`SUMIF`), average
+critic/user score (`AVERAGEIFS`), and the single best-selling title (`MAXIFS` to find the
+top sales figure, then a `SUMPRODUCT` row-finder to locate which title that belongs to —
+a workaround for the fact that Excel has no native "return the row where X is max").
+dplyr's `slice_max()` does that last step directly — this is one place where the
+spreadsheet needs a multi-formula workaround for something the code tool does natively.
+
+```{r genre-insights}
+genre_summary <- vg %>%
+  group_by(Genre) %>%
+  summarise(
+    Games = n(),
+    Total_Global_Sales_M = sum(Global_Sales, na.rm = TRUE),
+    Avg_Critic_Score = mean(Critic_Score, na.rm = TRUE),
+    Avg_User_Score_x10 = mean(User_Score, na.rm = TRUE) * 10,
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Global_Sales_M))
+
+best_sellers <- vg %>%
+  group_by(Genre) %>%
+  slice_max(Global_Sales, n = 1, with_ties = FALSE) %>%
+  select(Genre, Best_Seller = Name, Best_Seller_Sales_M = Global_Sales)
+
+genre_summary <- genre_summary %>% left_join(best_sellers, by = "Genre")
+genre_summary
+```
+
+```{r genre-chart}
+ggplot(genre_summary, aes(x = reorder(Genre, Total_Global_Sales_M), y = Total_Global_Sales_M)) +
+  geom_col(fill = "#16A085") +
+  coord_flip() +
+  labs(title = "Total Global Sales by Genre", x = NULL, y = "Global Sales ($M)") +
+  theme_minimal(base_size = 13)
+```
+
+## Critical Reception vs. Commercial Success
+
+Mirrors the Excel "Genre Insights" scatter chart (critic score vs. avg user score,
+bubble-sized implicitly by genre) — same two-variable comparison, built natively with
+`geom_point()` instead of an Excel `ScatterChart` object.
+
+```{r reception-scatter}
+ggplot(genre_summary, aes(x = Avg_Critic_Score, y = Avg_User_Score_x10, label = Genre)) +
+  geom_point(aes(size = Total_Global_Sales_M), color = "#8E44AD", alpha = 0.7) +
+  geom_text(vjust = -1.1, size = 3.2) +
+  labs(title = "Critical Reception vs. Commercial Success, by Genre",
+       subtitle = "Point size = total global sales ($M)",
+       x = "Avg Critic Score (0-100)", y = "Avg User Score (scaled to 0-100)") +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+## Release-Year Trend
+
+Mirrors the Excel "Release Trends" sheet's `COUNTIF` (titles released per year) and its
+companion sales-per-year line. The dataset's tail years (2017+) are sparse/incomplete in
+the source file, so they're dropped to avoid a misleading end-of-line dip.
+
+```{r year-trend}
+year_summary <- vg %>%
+  filter(!is.na(Year_of_Release), Year_of_Release >= 1996, Year_of_Release <= 2016) %>%
+  group_by(Year_of_Release) %>%
+  summarise(Releases = n(), Total_Sales_M = sum(Global_Sales, na.rm = TRUE), .groups = "drop")
+
+ggplot(year_summary, aes(x = Year_of_Release)) +
+  geom_col(aes(y = Releases), fill = "#3498DB", alpha = 0.6) +
+  geom_line(aes(y = Total_Sales_M), color = "#E67E22", size = 1.2) +
+  geom_point(aes(y = Total_Sales_M), color = "#E67E22", size = 2) +
+  labs(title = "Releases per Year vs. Total Sales per Year, 1996-2016",
+       subtitle = "Bars = title count (left scale shared); line = total global sales ($M)",
+       x = "Year of Release", y = "Count / Sales ($M)") +
+  theme_minimal(base_size = 13)
+```
+
+## Top Publishers by Total Sales
+
+Mirrors the Excel "Publisher Leaderboard" sheet's `COUNTIF`-based ranking.
+
+```{r top-publishers}
+top_publishers <- vg %>%
+  group_by(Publisher) %>%
+  summarise(Games = n(), Total_Sales_M = sum(Global_Sales, na.rm = TRUE), .groups = "drop") %>%
+  filter(Publisher != "") %>%
+  arrange(desc(Total_Sales_M)) %>%
+  slice_head(n = 12)
+
+ggplot(top_publishers, aes(x = reorder(Publisher, Total_Sales_M), y = Total_Sales_M)) +
+  geom_col(fill = "#C0392B") +
+  coord_flip() +
+  labs(title = "Top 12 Publishers by Total Global Sales", x = NULL, y = "Global Sales ($M)") +
+  theme_minimal(base_size = 13)
+```
+
+## Platform Mix Within Top Genres
+
+```{r platform-mix}
+top_genres <- genre_summary$Genre[1:5]
+
+vg %>%
+  filter(Genre %in% top_genres) %>%
+  count(Genre, Platform) %>%
+  group_by(Genre) %>%
+  slice_max(n, n = 3, with_ties = FALSE) %>%
+  ungroup() %>%
+  ggplot(aes(x = Genre, y = n, fill = Platform)) +
+  geom_col(position = "dodge") +
+  labs(title = "Top 3 Platforms Within Each of the 5 Best-Selling Genres",
+       x = NULL, y = "Title count") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1))
+```
+
+## Takeaways
+
+Action and Sports titles lead total sales largely on volume, not unusually high
+per-title scores; critic and user scores track each other reasonably well across genres,
+with the user-score discount typical of more "casual" genres (Misc, Party-style titles)
+visible in the scatter plot. Industry-wide release volume and total sales both peaked in
+the mid-2000s to early-2010s window before declining as the source data's later years
+thin out.
+
+---
+*Data source: Kaggle — "Video Game Sales with Ratings" (Vgchartz sales data merged with Metacritic critic/user scores).*

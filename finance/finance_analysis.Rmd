@@ -1,0 +1,196 @@
+---
+title: "Finance & Supply Chain — Profitability and Fulfillment Analysis"
+author: "Sai"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+```
+
+## Overview
+
+This report analyzes ~9,000 order-line records from a retail supply-chain dataset
+(DataCo-style order/shipment data), covering department, profitability, and on-time
+delivery performance. It's the R/dplyr companion to an Excel workbook covering the same
+dataset — the department grouping and risk-flag logic below are direct translations of
+that workbook's `VLOOKUP` + nested-`IF` helper columns, included here specifically
+because this project (unlike the sports/gaming ones) is meant to read as ordinary
+day-to-day business analytics, not a hobby dataset.
+
+```{r load-data}
+fin <- read.csv("/tmp/clean/finance_clean.csv", stringsAsFactors = FALSE)
+glimpse(fin)
+```
+
+## Department Grouping (Lookup) & Risk Classification
+
+The raw `Department` field has 11 values that map many-to-one onto 5 broader groups.
+Excel does this with `VLOOKUP` against a small reference table; here it's a named R
+vector + a join (same lookup, different mechanics). `RiskFlag` mirrors the Excel
+workbook's 3-level nested `IF`: a true loss is flagged first regardless of delivery
+status; otherwise a late-risk shipment is flagged; otherwise a thin (<10%) but positive
+margin is flagged "Low Margin"; everything else is "Healthy."
+
+```{r dept-risk}
+dept_groups <- c(
+  "Golf" = "Sporting Goods", "Fan Shop" = "Sporting Goods",
+  "Apparel" = "Apparel & Footwear", "Footwear" = "Apparel & Footwear",
+  "Outdoors" = "Outdoor & Recreation", "Fitness" = "Outdoor & Recreation",
+  "Technology" = "Technology",
+  "Book Shop" = "Other Specialty", "Discs Shop" = "Other Specialty",
+  "Health and Beauty " = "Other Specialty", "Pet Shop" = "Other Specialty"
+)
+
+fin <- fin %>%
+  mutate(
+    DeptGroup = recode(Department, !!!dept_groups),
+    RiskFlag = case_when(
+      ProfitRatio < 0 ~ "Loss",
+      LateDeliveryRisk == 1 ~ "Late Risk",
+      ProfitRatio < 0.1 ~ "Low Margin",
+      TRUE ~ "Healthy"
+    )
+  )
+
+fin %>% count(DeptGroup, sort = TRUE)
+```
+
+## Company-Wide KPIs
+
+Mirrors the Excel "Profitability Dashboard" KPI strip — same seven headline numbers,
+computed with `sum()`/`mean()` instead of `SUM`/`COUNTIF`/`SUMIF` formulas.
+
+```{r kpis}
+kpis <- fin %>%
+  summarise(
+    Total_Sales = sum(Sales, na.rm = TRUE),
+    Total_Profit = sum(OrderProfit, na.rm = TRUE),
+    Overall_Margin = Total_Profit / Total_Sales,
+    Total_Order_Lines = n(),
+    Late_Delivery_Rate = mean(LateDeliveryRisk == 1, na.rm = TRUE),
+    Loss_Making_Lines = sum(RiskFlag == "Loss"),
+    Loss_Amount = sum(OrderProfit[RiskFlag == "Loss"], na.rm = TRUE)
+  )
+
+kpis %>%
+  pivot_longer(everything(), names_to = "KPI", values_to = "Value") %>%
+  mutate(Value = case_when(
+    KPI %in% c("Total_Sales", "Total_Profit", "Loss_Amount") ~ dollar(Value),
+    KPI %in% c("Overall_Margin", "Late_Delivery_Rate") ~ percent(Value, accuracy = 0.1),
+    TRUE ~ comma(Value)
+  ))
+```
+
+## Risk Flag Mix
+
+```{r risk-mix}
+risk_mix <- fin %>%
+  count(RiskFlag) %>%
+  mutate(Share = n / sum(n)) %>%
+  arrange(match(RiskFlag, c("Loss", "Late Risk", "Low Margin", "Healthy")))
+
+risk_mix
+```
+
+```{r risk-chart}
+ggplot(risk_mix, aes(x = "", y = Share, fill = factor(RiskFlag, levels = c("Healthy", "Low Margin", "Late Risk", "Loss")))) +
+  geom_col(width = 1) +
+  coord_polar("y") +
+  scale_fill_manual(values = c("Healthy" = "#27AE60", "Low Margin" = "#F39C12",
+                                "Late Risk" = "#E67E22", "Loss" = "#C0392B"), name = "Risk Flag") +
+  labs(title = "Order-Line Risk Flag Mix") +
+  theme_void(base_size = 13)
+```
+
+## Sales & Margin by Department Group
+
+Mirrors the Excel dashboard's department-group rollup table (`SUMIF` against the
+VLOOKUP-derived `DeptGroup` column).
+
+```{r dept-group-rollup}
+dept_rollup <- fin %>%
+  group_by(DeptGroup) %>%
+  summarise(Sales = sum(Sales, na.rm = TRUE), Profit = sum(OrderProfit, na.rm = TRUE), .groups = "drop") %>%
+  mutate(Margin = Profit / Sales) %>%
+  arrange(desc(Sales))
+
+dept_rollup
+```
+
+```{r dept-group-chart}
+ggplot(dept_rollup, aes(x = reorder(DeptGroup, Sales), y = Sales)) +
+  geom_col(fill = "#1F3864") +
+  coord_flip() +
+  scale_y_continuous(labels = dollar) +
+  labs(title = "Sales by Department Group", x = NULL, y = "Sales ($)") +
+  theme_minimal(base_size = 13)
+```
+
+## Sales by Department Group × Order Status
+
+Mirrors the native pivot table on the Excel "Profitability Dashboard" sheet
+(DeptGroup on rows, OrderStatus on columns, sum of Sales as the data field).
+
+```{r pivot-equivalent}
+pivot_tbl <- fin %>%
+  count(DeptGroup, OrderStatus, wt = Sales, name = "Sales") %>%
+  pivot_wider(names_from = OrderStatus, values_from = Sales, values_fill = 0)
+
+pivot_tbl
+```
+
+## Fulfillment: Late Delivery by Market & Shipping Mode
+
+Mirrors the Excel "Fulfillment Analysis" sheet's two `COUNTIFS`/`AVERAGEIF` tables
+(late rate and avg shipping days, split by Market and by ShippingMode).
+
+```{r fulfillment}
+by_market <- fin %>%
+  group_by(Market) %>%
+  summarise(Orders = n(), Late_Rate = mean(LateDeliveryRisk == 1),
+            Avg_Days_Actual = mean(ShippingDaysActual, na.rm = TRUE),
+            Avg_Days_Scheduled = mean(ShippingDaysScheduled, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(Late_Rate))
+
+by_mode <- fin %>%
+  group_by(ShippingMode) %>%
+  summarise(Orders = n(), Late_Rate = mean(LateDeliveryRisk == 1),
+            Avg_Days_Actual = mean(ShippingDaysActual, na.rm = TRUE),
+            Avg_Days_Scheduled = mean(ShippingDaysScheduled, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(Late_Rate))
+
+by_market
+by_mode
+```
+
+```{r fulfillment-chart}
+ggplot(by_mode, aes(x = reorder(ShippingMode, Late_Rate), y = Late_Rate)) +
+  geom_col(fill = "#922B21") +
+  coord_flip() +
+  scale_y_continuous(labels = percent) +
+  labs(title = "Late Delivery Rate by Shipping Mode", x = NULL, y = "Late Rate") +
+  theme_minimal(base_size = 13)
+```
+
+## Takeaways
+
+Late delivery risk — not gross loss-making — is the dominant drag on order-line health,
+and it concentrates heavily in the slower shipping modes, which is exactly where you'd
+expect a fulfillment fix to start paying off. Department-group margins are fairly even,
+so the bigger profitability lever here looks operational (shipping mode mix) rather than
+product-mix driven.
+
+---
+*Data source: a retail supply-chain order/shipment dataset (DataCo-style schema), in the
+same spirit as the public "DataCo Supply Chain" Kaggle dataset.*

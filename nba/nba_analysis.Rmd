@@ -1,0 +1,172 @@
+---
+title: "NBA Stat Projections — Player Performance & Trend Analysis"
+author: "Sai"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+```
+
+## Overview
+
+This report analyzes 10 seasons (2008–2017) of NBA player box-score data, sourced from
+the public Kaggle dataset *"NBA Players stats since 1950"* (filtered to the 2008–2017
+window). It's the R/dplyr/ggplot2 companion to an Excel workbook covering the same
+dataset — built to demonstrate the same analysis (position benchmarks, season trends,
+player projections) in a code-first tool. Where useful, comments below note which
+Excel technique a given dplyr/ggplot2 step replaces.
+
+```{r load-data}
+nba <- read.csv("/tmp/clean/nba_clean.csv", stringsAsFactors = FALSE)
+
+# Two calculated fields mirrored from the Excel "Raw Data" helper columns:
+#   PPG        = PTS / G                          (Excel: IF-wrapped division, avoids #DIV/0!)
+#   PrimaryPos = text before the hyphen in Pos     (Excel: LEFT/FIND on combo listings like "SG-SF")
+nba <- nba %>%
+  mutate(
+    PPG = if_else(G > 0, PTS / G, NA_real_),
+    PrimaryPos = sub("-.*", "", Pos)
+  )
+
+glimpse(nba)
+```
+
+## Position Benchmarks (All Seasons Combined)
+
+The Excel workbook computes this with `COUNTIF` (player count) and `AVERAGEIFS`
+(PPG/TRB/AST/FG% averages) grouped by the `PrimaryPos` helper column. In dplyr the
+same two-step "filter then aggregate" logic collapses into one `group_by() %>% summarise()`
+call — this is the main structural difference between spreadsheet and code approaches:
+Excel repeats one formula per row/category, dplyr expresses the grouping once.
+
+```{r position-benchmarks}
+position_order <- c("PG", "SG", "SF", "PF", "C")
+
+pos_summary <- nba %>%
+  filter(PrimaryPos %in% position_order) %>%
+  group_by(PrimaryPos) %>%
+  summarise(
+    Players = n(),
+    Avg_PPG = mean(PPG, na.rm = TRUE),
+    Avg_TRB = mean(TRB, na.rm = TRUE),
+    Avg_AST = mean(AST, na.rm = TRUE),
+    Avg_FG_pct = mean(FG., na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(PrimaryPos = factor(PrimaryPos, levels = position_order)) %>%
+  arrange(PrimaryPos)
+
+pos_summary
+```
+
+```{r position-chart}
+pos_long <- pos_summary %>%
+  select(PrimaryPos, Avg_PPG, Avg_TRB, Avg_AST) %>%
+  pivot_longer(-PrimaryPos, names_to = "Stat", values_to = "Value")
+
+ggplot(pos_long, aes(x = PrimaryPos, y = Value, fill = Stat)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Avg_PPG" = "#C0392B", "Avg_AST" = "#2980B9", "Avg_TRB" = "#27AE60"),
+                     labels = c("Avg_AST" = "Assists", "Avg_PPG" = "Points", "Avg_TRB" = "Rebounds")) +
+  labs(title = "Average Points / Rebounds / Assists by Position",
+       subtitle = "2008–2017 seasons combined", x = "Position", y = "Per-game average", fill = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+## Season Trends: League Scoring & Elite Scorers
+
+Mirrors the Excel "Season Rankings" sheet's `AVERAGEIFS` (league avg PPG by season) and
+`COUNTIFS` (count of players averaging 25+ PPG per season, a two-condition count: season
+AND PPG threshold).
+
+```{r season-trends}
+season_trends <- nba %>%
+  group_by(Season) %>%
+  summarise(
+    League_Avg_PPG = mean(PPG, na.rm = TRUE),
+    Players_25plus_PPG = sum(PPG >= 25, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+season_trends
+```
+
+```{r season-trend-chart}
+ggplot(season_trends, aes(x = Season)) +
+  geom_col(aes(y = Players_25plus_PPG), fill = "#F39C12", alpha = 0.6) +
+  geom_line(aes(y = League_Avg_PPG * 2), color = "#C0392B", size = 1.2) +
+  geom_point(aes(y = League_Avg_PPG * 2), color = "#C0392B", size = 2.5) +
+  scale_y_continuous(
+    name = "Players averaging 25+ PPG",
+    sec.axis = sec_axis(~ . / 2, name = "League avg PPG")
+  ) +
+  labs(title = "League Scoring Trend vs. Elite Scorer Count, 2008–2017",
+       x = "Season") +
+  theme_minimal(base_size = 13) +
+  theme(axis.title.y.right = element_text(color = "#C0392B"))
+```
+
+## Featured Player Trend & Next-Season Projection
+
+The Excel workbook uses `FORECAST.LINEAR` to fit a straight line through each featured
+player's 10 seasons of PPG and project 2018. In R, `lm(PPG ~ Season)` is the direct
+equivalent — `FORECAST.LINEAR` *is* simple OLS regression under the hood, so this isn't
+an approximation, it's the same calculation.
+
+```{r featured-players}
+featured <- c("LeBron James", "Kevin Durant", "Dirk Nowitzki", "Dwyane Wade", "Chris Paul")
+
+featured_data <- nba %>%
+  filter(Player %in% featured) %>%
+  select(Player, Season, PPG) %>%
+  arrange(Player, Season)
+
+# One linear model per player, then predict PPG for the season after their last one.
+projections <- featured_data %>%
+  group_by(Player) %>%
+  group_modify(~ {
+    fit <- lm(PPG ~ Season, data = .x)
+    next_season <- max(.x$Season) + 1
+    pred <- predict(fit, newdata = data.frame(Season = next_season))
+    tibble(Season = next_season, PPG = as.numeric(pred), Projected = TRUE)
+  }) %>%
+  ungroup()
+
+featured_data$Projected <- FALSE
+featured_full <- bind_rows(featured_data, projections) %>% arrange(Player, Season)
+
+projections %>% select(Player, Projected_Season = Season, Projected_PPG = PPG)
+```
+
+```{r featured-chart}
+ggplot(featured_full, aes(x = Season, y = PPG, color = Player)) +
+  geom_line(data = filter(featured_full, !Projected), size = 1) +
+  geom_point(data = filter(featured_full, !Projected), size = 2) +
+  geom_point(data = filter(featured_full, Projected), shape = 8, size = 4, stroke = 1.3) +
+  labs(title = "PPG Trend & Next-Season Projection, Featured Players",
+       subtitle = "Star (*) marks the linear-regression projection for the season after the data ends",
+       x = "Season", y = "Points Per Game") +
+  theme_minimal(base_size = 13)
+```
+
+## Takeaways
+
+Scoring concentrates predictably by position (guards and forwards lead PPG; centers
+lead rebounding), the count of 25+ PPG scorers tracks the league-wide pace-up trend
+across 2008–2017, and a simple linear trend is a reasonable — though noisy — one-season-out
+projection tool for the featured players, consistent with what the Excel `FORECAST.LINEAR`
+version of this same workbook shows.
+
+---
+*Data source: Kaggle — "NBA Players stats since 1950" (filtered to 2008–2017 seasons).*
