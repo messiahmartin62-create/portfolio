@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book Ratings Analysis — Sai's Data Analyst Portfolio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<style>
+:root {
+  --ink: #1c2530; --muted: #5b6675; --line: #e3e7ec;
+  --accent: #2563eb; --accent-dark: #1d4ed8; --bg: #fafbfc; --card: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+       background: var(--bg); color: var(--ink); line-height: 1.6; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 56px 24px 80px; }
+a { color: var(--accent); }
+header.page-head { margin-bottom: 40px; border-bottom: 1px solid var(--line); padding-bottom: 28px; }
+header.page-head .back { font-size: 0.85rem; font-weight: 600; text-decoration: none; }
+header.page-head h1 { font-size: 1.7rem; margin: 14px 0 8px; letter-spacing: -0.01em; }
+header.page-head p.tagline { color: var(--muted); margin: 0 0 16px; max-width: 680px; }
+header.page-head .meta { font-size: 0.83rem; color: var(--muted); }
+header.page-head .meta a { font-weight: 600; }
+.chart-img { width: 100%; border-radius: 10px; border: 1px solid var(--line); margin: 24px 0 8px; display: block; }
+section.about { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin: 28px 0; }
+section.about h2 { font-size: 1.05rem; margin: 0 0 10px; }
+section.about p { color: var(--ink); font-size: 0.93rem; margin: 0 0 10px; }
+section.about ul { margin: 8px 0 0; padding-left: 20px; font-size: 0.9rem; color: var(--muted); }
+section.about li { margin-bottom: 5px; }
+.schema-block { font-size: 0.82rem; }
+h2.section-title { font-size: 1.25rem; margin: 44px 0 18px; padding-top: 4px; }
+.qcard { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; margin-bottom: 22px; }
+.qcard h3 { font-size: 1.03rem; margin: 0 0 12px; }
+.qcard .insight { background: #eef2ff; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0;
+                  font-size: 0.9rem; color: var(--ink); margin-top: 14px; }
+.qcard .insight b { color: var(--accent-dark); }
+pre { background: #1c2530; color: #e3e7ec; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      font-size: 0.82rem; margin: 0 0 16px; }
+table.result { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 4px; }
+table.result th { text-align: left; background: #f3f4f6; padding: 7px 10px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+table.result td { padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.result tr:hover td { background: #f8f9fb; }
+.table-scroll { overflow-x: auto; }
+footer { margin-top: 50px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <a class="back" href="../index.html">&larr; Back to portfolio</a>
+    <h1>Book Ratings Analysis</h1>
+    <p class="tagline">Six SQL queries against a 900K-row sample of real Goodreads ratings data, covering joins, multi-level CTEs, window functions (RANK, rolling AVG), and a manual variance calculation — answering: what gets rated highest, which books are the most divisive, and how do reading habits differ by user and by decade.</p>
+    <p class="meta">
+      <a href="book_ratings.db">Download SQLite .db</a> &nbsp;|&nbsp;
+      <a href="schema.sql">schema.sql</a> &nbsp;|&nbsp;
+      <a href="queries.sql">queries.sql</a>
+    </p>
+  </header>
+
+  <img class="chart-img" src="../images/book-ratings.png" alt="Top 10 highest-rated books chart">
+
+  <section class="about">
+    <h2>About this data</h2>
+    <p>Source: <a href="https://github.com/zygmuntz/goodbooks-10k" target="_blank">goodbooks-10k</a> — real Goodreads ratings for 10,000 books, collected by Zygmunt Zając. Not a synthetic or tutorial dataset.</p>
+    <ul><li><b>ratings.csv</b> downsampled from ~6M rows to 900,000 (random seed 42) to keep the .db file a reasonable size for a GitHub repo, while preserving the statistical character of the original.</li><li><b>book_tags.csv</b> trimmed to each book's top 20 tags by count (from ~1M rows to 200,000) — the long tail of one-off/typo tags carries no analytical signal.</li><li><b>books</b> and <b>tags</b> kept at full size; both are already small and clean.</li></ul>
+  </section>
+
+  <section class="about schema-block">
+    <h2>Schema</h2>
+    <p><code>books</code>(book_id PK, goodreads_book_id, authors, title, original_publication_year, average_rating, ratings_count, ratings_1..5, ...) &middot; <code>ratings</code>(user_id, book_id, rating) &middot; <code>tags</code>(tag_id PK, tag_name) &middot; <code>book_tags</code>(goodreads_book_id, tag_id, count) — joins to <code>books</code> via <code>goodreads_book_id</code>, not <code>book_id</code>.</p><p style='color:var(--muted);font-size:0.85rem;'>4 indexes on the join/filter columns (ratings.book_id, ratings.user_id, book_tags.goodreads_book_id, books.goodreads_book_id).</p>
+  </section>
+
+  <h2 class="section-title">Queries &amp; Findings</h2>
+  
+        <div class="qcard">
+          <h3>Q1. Top 10 highest-rated books (min. 200 ratings in sample)</h3>
+          <pre><code class="language-sql">-- Q1. Top 10 highest-rated books with a meaningful sample size.
+-- Computed fresh from the ratings table (not the pre-baked
+-- average_rating column) so the number is something I actually
+-- derived, not something I copied from the source file.
+SELECT
+    b.title,
+    b.authors,
+    COUNT(*)                       AS n_ratings,
+    ROUND(AVG(r.rating), 2)        AS avg_rating
+FROM ratings r
+JOIN books b ON b.book_id = r.book_id
+GROUP BY b.book_id
+HAVING COUNT(*) &gt;= 200
+ORDER BY avg_rating DESC, n_ratings DESC
+LIMIT 10</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>title</th><th>authors</th><th>n_ratings</th><th>avg_rating</th></tr></thead><tbody><tr><td>Harry Potter Boxset (Harry Potter, #1-7)</td><td>J.K. Rowling</td><td>302</td><td>4.68</td></tr><tr><td>Words of Radiance (The Stormlight Archive, #2)</td><td>Brandon Sanderson</td><td>206</td><td>4.67</td></tr><tr><td>Calvin and Hobbes</td><td>Bill Watterson, G.B. Trudeau</td><td>232</td><td>4.66</td></tr><tr><td>The Way of Kings (The Stormlight Archive, #1)</td><td>Brandon Sanderson</td><td>277</td><td>4.57</td></tr><tr><td>The Name of the Wind (The Kingkiller Chronicle, #1)</td><td>Patrick Rothfuss</td><td>624</td><td>4.53</td></tr><tr><td>Harry Potter and the Deathly Hallows (Harry Potter, #7)</td><td>J.K. Rowling, Mary GrandPré</td><td>2384</td><td>4.51</td></tr><tr><td>The Wise Man&#x27;s Fear (The Kingkiller Chronicle, #2)</td><td>Patrick Rothfuss</td><td>443</td><td>4.51</td></tr><tr><td>The Hobbit: Graphic Novel</td><td>Chuck Dixon, J.R.R. Tolkien, David Wenzel, Sean Deming</td><td>271</td><td>4.5</td></tr><tr><td>Clockwork Princess (The Infernal Devices, #3)</td><td>Cassandra Clare</td><td>281</td><td>4.47</td></tr><tr><td>The Nightingale</td><td>Kristin Hannah</td><td>571</td><td>4.44</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> Series with deeply invested fanbases dominate — Sanderson's Stormlight Archive, Rothfuss's Kingkiller Chronicle, and the Harry Potter box set all outrank standalone bestsellers. People who finish a multi-book series and stick around to rate book 3 or 4 are a self-selected group of fans, which pulls these averages up.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q2. Most-used tags across the catalog</h3>
+          <pre><code class="language-sql">-- Q2. Most-used tags/shelves, joined across book_tags -&gt; tags.
+-- Top results mix real genres with generic shelves like &quot;to-read&quot; --
+-- that&#x27;s real-world data noise, not a bug, and it&#x27;s called out in
+-- the write-up.
+SELECT
+    t.tag_name,
+    COUNT(DISTINCT bt.goodreads_book_id)   AS n_books_tagged,
+    SUM(bt.count)                          AS total_tag_uses
+FROM book_tags bt
+JOIN tags t ON t.tag_id = bt.tag_id
+GROUP BY t.tag_name
+ORDER BY total_tag_uses DESC
+LIMIT 15</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>tag_name</th><th>n_books_tagged</th><th>total_tag_uses</th></tr></thead><tbody><tr><td>to-read</td><td>9909</td><td>140714234</td></tr><tr><td>currently-reading</td><td>9257</td><td>7482346</td></tr><tr><td>favorites</td><td>9147</td><td>4483911</td></tr><tr><td>fiction</td><td>7837</td><td>3648405</td></tr><tr><td>fantasy</td><td>3293</td><td>3520164</td></tr><tr><td>young-adult</td><td>2382</td><td>1813448</td></tr><tr><td>classics</td><td>1713</td><td>1728657</td></tr><tr><td>books-i-own</td><td>7084</td><td>1236748</td></tr><tr><td>romance</td><td>2893</td><td>1196250</td></tr><tr><td>owned</td><td>7844</td><td>1149905</td></tr><tr><td>ya</td><td>1882</td><td>866327</td></tr><tr><td>non-fiction</td><td>1688</td><td>849641</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 15 rows.</p>
+          <div class="insight"><b>Insight:</b> The top tags by volume aren't genres — they're shelf labels. <b>to-read</b> alone has 140.7M tag applications, dwarfing every genre tag. Real genre signal (fantasy, fiction, romance) shows up further down. Any tag-based genre analysis on Goodreads-style data needs to filter out shelf-management tags first, or the results are meaningless.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q3. Top 3 books per publication decade, ranked by average rating</h3>
+          <pre><code class="language-sql">-- Q3. Top 3 books per publication decade by computed average rating.
+-- CTE chain + RANK() window function PARTITIONed by decade.
+WITH book_avg AS (
+    SELECT book_id, COUNT(*) AS n_ratings, AVG(rating) AS avg_rating
+    FROM ratings
+    GROUP BY book_id
+    HAVING COUNT(*) &gt;= 100
+),
+decade_books AS (
+    SELECT
+        b.title,
+        b.authors,
+        (CAST(b.original_publication_year AS INT) / 10) * 10 AS decade,
+        ba.avg_rating,
+        ba.n_ratings
+    FROM book_avg ba
+    JOIN books b ON b.book_id = ba.book_id
+    WHERE b.original_publication_year IS NOT NULL
+),
+ranked AS (
+    SELECT
+        decade,
+        title,
+        authors,
+        ROUND(avg_rating, 2) AS avg_rating,
+        n_ratings,
+        RANK() OVER (PARTITION BY decade ORDER BY avg_rating DESC) AS rank_in_decade
+    FROM decade_books
+)
+SELECT * FROM ranked
+WHERE rank_in_decade &lt;= 3
+ORDER BY decade DESC, rank_in_decade</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>decade</th><th>title</th><th>authors</th><th>avg_rating</th><th>n_ratings</th><th>rank_in_decade</th></tr></thead><tbody><tr><td>2010</td><td>A Court of Mist and Fury (A Court of Thorns and Roses, #2)</td><td>Sarah J. Maas</td><td>4.72</td><td>166</td><td>1</td></tr><tr><td>2010</td><td>Empire of Storms (Throne of Glass, #5)</td><td>Sarah J. Maas</td><td>4.69</td><td>112</td><td>2</td></tr><tr><td>2010</td><td>Words of Radiance (The Stormlight Archive, #2)</td><td>Brandon Sanderson</td><td>4.67</td><td>206</td><td>3</td></tr><tr><td>2000</td><td>The Name of the Wind (The Kingkiller Chronicle, #1)</td><td>Patrick Rothfuss</td><td>4.53</td><td>624</td><td>1</td></tr><tr><td>2000</td><td>Harry Potter and the Deathly Hallows (Harry Potter, #7)</td><td>J.K. Rowling, Mary GrandPré</td><td>4.51</td><td>2384</td><td>2</td></tr><tr><td>2000</td><td>Night Watch (Discworld, #29; City Watch, #6)</td><td>Terry Pratchett</td><td>4.5</td><td>157</td><td>3</td></tr><tr><td>1990</td><td>The Calvin and Hobbes Tenth Anniversary Book</td><td>Bill Watterson</td><td>4.72</td><td>102</td><td>1</td></tr><tr><td>1990</td><td>Harry Potter Boxset (Harry Potter, #1-7)</td><td>J.K. Rowling</td><td>4.68</td><td>302</td><td>2</td></tr><tr><td>1990</td><td>A Game of You (The Sandman #5)</td><td>Neil Gaiman, Shawn McManus, Colleen Doran, Bryan Talbot, George Pratt, Stan Woch, Dick Giordano, Todd Klein</td><td>4.54</td><td>100</td><td>3</td></tr><tr><td>1980</td><td>Calvin and Hobbes</td><td>Bill Watterson, G.B. Trudeau</td><td>4.66</td><td>232</td><td>1</td></tr><tr><td>1980</td><td>The Essential Calvin and Hobbes: A Calvin and Hobbes Treasury</td><td>Bill Watterson</td><td>4.62</td><td>191</td><td>2</td></tr><tr><td>1980</td><td>The Complete Maus (Maus, #1-2)</td><td>Art Spiegelman</td><td>4.57</td><td>130</td><td>3</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 93 rows.</p>
+          <div class="insight"><b>Insight:</b> 2010s YA/fantasy series post the highest average ratings of any decade's top 3 — noticeably ahead of decades-old classics. That's an active-fanbase effect, not a quality signal: people rating a series they're currently reading tend to rate it generously, while older classics get rated by a more mixed, sometimes-obligated audience.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q4. Most polarizing books (high rating volume, high disagreement)</h3>
+          <pre><code class="language-sql">-- Q4. Most polarizing books: high rating volume, high disagreement.
+-- SQLite has no STDDEV(), so variance is computed manually from
+-- E[x^2] - E[x]^2.
+SELECT
+    b.title,
+    b.authors,
+    COUNT(*)                                                            AS n_ratings,
+    ROUND(AVG(r.rating), 2)                                             AS avg_rating,
+    ROUND(SQRT(AVG(r.rating * r.rating) - AVG(r.rating) * AVG(r.rating)), 2) AS rating_stddev
+FROM ratings r
+JOIN books b ON b.book_id = r.book_id
+GROUP BY b.book_id
+HAVING COUNT(*) &gt;= 300
+ORDER BY rating_stddev DESC
+LIMIT 10</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>title</th><th>authors</th><th>n_ratings</th><th>avg_rating</th><th>rating_stddev</th></tr></thead><tbody><tr><td>Fifty Shades of Grey (Fifty Shades, #1)</td><td>E.L. James</td><td>1108</td><td>3.12</td><td>1.43</td></tr><tr><td>Atlas Shrugged</td><td>Ayn Rand, Leonard Peikoff</td><td>622</td><td>3.5</td><td>1.38</td></tr><tr><td>Twilight (Twilight, #1)</td><td>Stephenie Meyer</td><td>2596</td><td>3.23</td><td>1.37</td></tr><tr><td>Breaking Dawn (Twilight, #4)</td><td>Stephenie Meyer</td><td>1411</td><td>3.35</td><td>1.33</td></tr><tr><td>Marked (House of Night, #1)</td><td>P.C. Cast, Kristin Cast</td><td>395</td><td>3.48</td><td>1.29</td></tr><tr><td>The Shack</td><td>William Paul Young</td><td>531</td><td>3.35</td><td>1.29</td></tr><tr><td>A Confederacy of Dunces</td><td>John Kennedy Toole, Walker Percy</td><td>425</td><td>3.73</td><td>1.27</td></tr><tr><td>Moby-Dick or, The Whale</td><td>Herman Melville, Andrew Delbanco, Tom Quirk</td><td>623</td><td>3.43</td><td>1.27</td></tr><tr><td>Fifty Shades Freed (Fifty Shades, #3)</td><td>E.L. James</td><td>648</td><td>3.51</td><td>1.27</td></tr><tr><td>Fifty Shades Darker (Fifty Shades, #2)</td><td>E.L. James</td><td>678</td><td>3.47</td><td>1.26</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> The most polarizing titles are exactly the ones with outsized cultural reach — <i>Fifty Shades of Grey</i>, <i>Twilight</i>, <i>Atlas Shrugged</i>. High-visibility books attract both devoted fans and people who pick them up just to see what the fuss is about — and often dislike them — which is what drives the spread up.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q5. Power users vs. the global average rating</h3>
+          <pre><code class="language-sql">-- Q5. Power users vs. the global average -- who rates harsher or more
+-- generously than everyone else. CTE + scalar subquery for the
+-- global baseline.
+WITH user_stats AS (
+    SELECT user_id, COUNT(*) AS n_ratings, AVG(rating) AS user_avg
+    FROM ratings
+    GROUP BY user_id
+    HAVING COUNT(*) &gt;= 20
+)
+SELECT
+    user_id,
+    n_ratings,
+    ROUND(user_avg, 2)                                          AS user_avg_rating,
+    ROUND(user_avg - (SELECT AVG(rating) FROM ratings), 2)      AS diff_vs_global_avg
+FROM user_stats
+ORDER BY n_ratings DESC
+LIMIT 10</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>user_id</th><th>n_ratings</th><th>user_avg_rating</th><th>diff_vs_global_avg</th></tr></thead><tbody><tr><td>12874</td><td>44</td><td>3.59</td><td>-0.33</td></tr><tr><td>13339</td><td>43</td><td>3.88</td><td>-0.04</td></tr><tr><td>20076</td><td>43</td><td>3.26</td><td>-0.66</td></tr><tr><td>13929</td><td>42</td><td>3.93</td><td>0.01</td></tr><tr><td>49289</td><td>41</td><td>5.0</td><td>1.08</td></tr><tr><td>5272</td><td>40</td><td>3.6</td><td>-0.32</td></tr><tr><td>11837</td><td>40</td><td>3.05</td><td>-0.87</td></tr><tr><td>24383</td><td>40</td><td>4.08</td><td>0.15</td></tr><tr><td>49297</td><td>40</td><td>5.0</td><td>1.08</td></tr><tr><td>52036</td><td>40</td><td>3.53</td><td>-0.4</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> Among readers with 20+ ratings in this sample, individual bias swings by more than a full star against the platform mean — some users rate almost everything 5 stars (+1.08 vs. global average), others run consistently harsher. Any rating-based recommendation system needs to normalize for this per-user bias before comparing ratings across users.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q6. 5-year rolling average rating by publication year</h3>
+          <pre><code class="language-sql">-- Q6. 5-year rolling average rating by publication year -- do older
+-- or newer books trend better? CTE + window frame (ROWS BETWEEN).
+WITH yearly AS (
+    SELECT
+        CAST(b.original_publication_year AS INT) AS pub_year,
+        AVG(r.rating)                             AS avg_rating,
+        COUNT(*)                                  AS n_ratings
+    FROM ratings r
+    JOIN books b ON b.book_id = r.book_id
+    WHERE b.original_publication_year IS NOT NULL
+      AND CAST(b.original_publication_year AS INT) BETWEEN 1980 AND 2017
+    GROUP BY pub_year
+)
+SELECT
+    pub_year,
+    ROUND(avg_rating, 3)  AS avg_rating,
+    n_ratings,
+    ROUND(AVG(avg_rating) OVER (
+        ORDER BY pub_year ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
+    ), 3)                  AS rolling_5yr_avg
+FROM yearly
+ORDER BY pub_year</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>pub_year</th><th>avg_rating</th><th>n_ratings</th><th>rolling_5yr_avg</th></tr></thead><tbody><tr><td>1980</td><td>3.879</td><td>5498</td><td>3.879</td></tr><tr><td>1981</td><td>3.911</td><td>3631</td><td>3.895</td></tr><tr><td>1982</td><td>4.01</td><td>6922</td><td>3.933</td></tr><tr><td>1983</td><td>3.855</td><td>3486</td><td>3.914</td></tr><tr><td>1984</td><td>3.941</td><td>5312</td><td>3.919</td></tr><tr><td>1985</td><td>3.992</td><td>9374</td><td>3.942</td></tr><tr><td>1986</td><td>4.019</td><td>6291</td><td>3.963</td></tr><tr><td>1987</td><td>3.956</td><td>8633</td><td>3.953</td></tr><tr><td>1988</td><td>3.967</td><td>7725</td><td>3.975</td></tr><tr><td>1989</td><td>4.019</td><td>9731</td><td>3.991</td></tr><tr><td>1990</td><td>3.986</td><td>8968</td><td>3.989</td></tr><tr><td>1991</td><td>3.93</td><td>7936</td><td>3.972</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 38 rows.</p>
+          <div class="insight"><b>Insight:</b> The rolling average barely moves — it stays inside a tight 3.85–3.99 band across almost four decades (1980–2017). There's no meaningful ratings inflation or recency bias in this sample; older and newer books get rated about the same on average once you smooth out year-to-year noise.</div>
+        </div>
+
+  <footer>
+    Full SQL and the SQLite database are in the
+    <a href="../index.html">repo</a>. Every query above ran clean against the actual database —
+    no hand-typed numbers.
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script>hljs.highlightAll();</script>
+  </footer>
+</div>
+</body>
+</html>

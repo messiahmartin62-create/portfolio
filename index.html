@@ -99,9 +99,11 @@
   <header>
     <h1>Sai — Data Analyst Portfolio</h1>
     <p class="tagline">
-      Four end-to-end analyses, each built twice: once as an Excel workbook (live formulas,
-      pivot tables, charts) and once as an R Markdown report (dplyr + ggplot2). Same datasets,
-      same analytical logic, two tools — spreadsheet fluency and code-first analysis side by side.
+      Six end-to-end analyses across three tools. Four sports/business datasets, each built
+      twice — once as an Excel workbook (live formulas, pivot tables, charts) and once as an
+      R Markdown report (dplyr + ggplot2) — same datasets, same logic, two tools side by side.
+      Two more are SQL projects: real data normalized into relational SQLite databases and
+      queried with joins, CTEs, and window functions.
     </p>
     <div class="links">
       <a href="https://github.com/messiahmartin62-create/portfolio">View source on GitHub</a>
@@ -175,13 +177,50 @@
       </div>
     </div>
 
+    <div class="card">
+      <img src="images/book-ratings.png" alt="Top 10 highest-rated books chart">
+      <div class="card-body">
+        <h2>Book Ratings Analysis (SQL)</h2>
+        <p class="desc">
+          900K real Goodreads ratings across 10,000 books, loaded into a 4-table relational
+          SQLite database. CTEs, window functions, and a manual variance calculation surface
+          the highest-rated, most polarizing, and most divisive books, plus per-user rating bias.
+        </p>
+        <p class="tech"><span>CTEs</span><span>Window Functions</span><span>Joins</span><span>SQLite</span></p>
+        <div class="actions">
+          <a class="btn primary" href="book-ratings/book-ratings_analysis.html">View Report</a>
+          <a class="btn secondary" href="book-ratings/book_ratings.db">Download .db</a>
+          <a class="btn secondary" href="book-ratings/queries.sql">View Queries</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="images/online-retail.png" alt="Monthly revenue trend chart">
+      <div class="card-body">
+        <h2>Online Retail Analysis (SQL)</h2>
+        <p class="desc">
+          541,909-row UK retailer transaction file, normalized by hand from one flat table into
+          a 4-table relational database. RFM segmentation, running totals, and cohort comparisons
+          find where revenue — and returns — actually come from.
+        </p>
+        <p class="tech"><span>Data Normalization</span><span>RFM Segmentation</span><span>Window Functions</span><span>SQLite</span></p>
+        <div class="actions">
+          <a class="btn primary" href="online-retail/online-retail_analysis.html">View Report</a>
+          <a class="btn secondary" href="online-retail/online_retail.db">Download .db</a>
+          <a class="btn secondary" href="online-retail/queries.sql">View Queries</a>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <footer>
-    Built with Excel (formulas, pivot tables, charts) and R (dplyr, ggplot2, rmarkdown/knitr).
-    Note: GitHub previews .xlsx files as static data — download and open in Excel or LibreOffice
-    Calc to see live pivot tables, formulas, and charts. Full source, including the R Markdown
-    files, is in the <a href="https://github.com/messiahmartin62-create/portfolio">repo</a>.
+    Built with Excel (formulas, pivot tables, charts), R (dplyr, ggplot2, rmarkdown/knitr), and
+    SQL (SQLite). Note: GitHub previews .xlsx files as static data — download and open in Excel
+    or LibreOffice Calc to see live pivot tables, formulas, and charts. Full source, including
+    the R Markdown files and SQL scripts, is in the
+    <a href="https://github.com/messiahmartin62-create/portfolio">repo</a>.
   </footer>
 
 </div>

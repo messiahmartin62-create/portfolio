@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Retail Analysis — Sai's Data Analyst Portfolio</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<style>
+:root {
+  --ink: #1c2530; --muted: #5b6675; --line: #e3e7ec;
+  --accent: #2563eb; --accent-dark: #1d4ed8; --bg: #fafbfc; --card: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+       background: var(--bg); color: var(--ink); line-height: 1.6; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 56px 24px 80px; }
+a { color: var(--accent); }
+header.page-head { margin-bottom: 40px; border-bottom: 1px solid var(--line); padding-bottom: 28px; }
+header.page-head .back { font-size: 0.85rem; font-weight: 600; text-decoration: none; }
+header.page-head h1 { font-size: 1.7rem; margin: 14px 0 8px; letter-spacing: -0.01em; }
+header.page-head p.tagline { color: var(--muted); margin: 0 0 16px; max-width: 680px; }
+header.page-head .meta { font-size: 0.83rem; color: var(--muted); }
+header.page-head .meta a { font-weight: 600; }
+.chart-img { width: 100%; border-radius: 10px; border: 1px solid var(--line); margin: 24px 0 8px; display: block; }
+section.about { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin: 28px 0; }
+section.about h2 { font-size: 1.05rem; margin: 0 0 10px; }
+section.about p { color: var(--ink); font-size: 0.93rem; margin: 0 0 10px; }
+section.about ul { margin: 8px 0 0; padding-left: 20px; font-size: 0.9rem; color: var(--muted); }
+section.about li { margin-bottom: 5px; }
+.schema-block { font-size: 0.82rem; }
+h2.section-title { font-size: 1.25rem; margin: 44px 0 18px; padding-top: 4px; }
+.qcard { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; margin-bottom: 22px; }
+.qcard h3 { font-size: 1.03rem; margin: 0 0 12px; }
+.qcard .insight { background: #eef2ff; border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0;
+                  font-size: 0.9rem; color: var(--ink); margin-top: 14px; }
+.qcard .insight b { color: var(--accent-dark); }
+pre { background: #1c2530; color: #e3e7ec; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      font-size: 0.82rem; margin: 0 0 16px; }
+table.result { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 4px; }
+table.result th { text-align: left; background: #f3f4f6; padding: 7px 10px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+table.result td { padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.result tr:hover td { background: #f8f9fb; }
+.table-scroll { overflow-x: auto; }
+footer { margin-top: 50px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <a class="back" href="../index.html">&larr; Back to portfolio</a>
+    <h1>Online Retail Analysis</h1>
+    <p class="tagline">Six SQL queries against a self-normalized relational database built from a flat, 541,909-row UK online retailer transaction file — covering CTEs, window functions (LAG, running SUM), RFM segmentation, and cohort comparison — answering: where the revenue actually comes from, who the best customers are, and where the returns problems are.</p>
+    <p class="meta">
+      <a href="online_retail.db">Download SQLite .db</a> &nbsp;|&nbsp;
+      <a href="schema.sql">schema.sql</a> &nbsp;|&nbsp;
+      <a href="queries.sql">queries.sql</a>
+    </p>
+  </header>
+
+  <img class="chart-img" src="../images/online-retail.png" alt="Monthly revenue trend chart">
+
+  <section class="about">
+    <h2>About this data</h2>
+    <p>Source: UCI Machine Learning Repository, <a href="https://archive.ics.uci.edu/dataset/352/online+retail" target="_blank">"Online Retail"</a> — real invoice-level transactions from a UK-based online gift retailer, Dec 2010–Dec 2011.</p>
+    <ul><li>The original file is <b>one flat table</b> of 541,909 line items with no relational structure. I designed and built the schema below myself, splitting it into customers, products, orders, and order line items.</li><li>~25% of rows have no CustomerID (guest/unrecorded checkouts) — kept as orders with a NULL CustomerID rather than dropped, since they're still real revenue.</li><li>8 of 4,372 customers had more than one Country on file; each was assigned their most frequent country. 650 of 4,070 stock codes had inconsistent descriptions (typos/case); each was assigned its most frequent description.</li><li>Cancelled orders (invoice numbers starting with "C") are kept and flagged via <code>IsCancelled</code> rather than deleted — they're the basis for the returns analysis in Q6.</li><li>Non-product administrative codes (postage, bank charges, manual fees) are excluded from product-ranking queries (Q2, Q6) — they're not real SKUs and were initially polluting the "top products" and "most returned" results before I filtered them out.</li></ul>
+  </section>
+
+  <section class="about schema-block">
+    <h2>Schema</h2>
+    <p><code>customers</code>(CustomerID PK, Country) &middot; <code>products</code>(StockCode PK, Description) &middot; <code>orders</code>(InvoiceNo PK, CustomerID FK, InvoiceDate, Country, IsCancelled) &middot; <code>order_items</code>(InvoiceNo FK, StockCode FK, Quantity, UnitPrice).</p><p style='color:var(--muted);font-size:0.85rem;'>4 indexes on the join/filter columns (orders.CustomerID, order_items.InvoiceNo, order_items.StockCode, orders.InvoiceDate).</p>
+  </section>
+
+  <h2 class="section-title">Queries &amp; Findings</h2>
+  
+        <div class="qcard">
+          <h3>Q1. Monthly revenue with month-over-month % change</h3>
+          <pre><code class="language-sql">-- Q1. Monthly revenue with month-over-month % change.
+-- CTE for the monthly rollup, LAG() window function for the
+-- prior month&#x27;s value.
+WITH monthly AS (
+    SELECT
+        strftime(&#x27;%Y-%m&#x27;, o.InvoiceDate)            AS month,
+        ROUND(SUM(oi.Quantity * oi.UnitPrice), 2)    AS revenue
+    FROM orders o
+    JOIN order_items oi ON oi.InvoiceNo = o.InvoiceNo
+    GROUP BY month
+)
+SELECT
+    month,
+    revenue,
+    LAG(revenue) OVER (ORDER BY month)                                       AS prev_month_revenue,
+    ROUND(100.0 * (revenue - LAG(revenue) OVER (ORDER BY month))
+          / LAG(revenue) OVER (ORDER BY month), 1)                          AS pct_change
+FROM monthly
+ORDER BY month</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>month</th><th>revenue</th><th>prev_month_revenue</th><th>pct_change</th></tr></thead><tbody><tr><td>2010-12</td><td>748957.02</td><td></td><td></td></tr><tr><td>2011-01</td><td>560000.26</td><td>748957.02</td><td>-25.2</td></tr><tr><td>2011-02</td><td>498062.65</td><td>560000.26</td><td>-11.1</td></tr><tr><td>2011-03</td><td>683267.08</td><td>498062.65</td><td>37.2</td></tr><tr><td>2011-04</td><td>493207.12</td><td>683267.08</td><td>-27.8</td></tr><tr><td>2011-05</td><td>723333.51</td><td>493207.12</td><td>46.7</td></tr><tr><td>2011-06</td><td>691123.12</td><td>723333.51</td><td>-4.5</td></tr><tr><td>2011-07</td><td>681300.11</td><td>691123.12</td><td>-1.4</td></tr><tr><td>2011-08</td><td>682680.51</td><td>681300.11</td><td>0.2</td></tr><tr><td>2011-09</td><td>1019687.62</td><td>682680.51</td><td>49.4</td></tr><tr><td>2011-10</td><td>1070704.67</td><td>1019687.62</td><td>5.0</td></tr><tr><td>2011-11</td><td>1461756.25</td><td>1070704.67</td><td>36.5</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 13 rows.</p>
+          <div class="insight"><b>Insight:</b> Revenue holds roughly flat (~£500–700K/month) through most of 2011, then jumps sharply from September onward, peaking at £1.46M in November — typical pre-Christmas wholesale ordering for a gift retailer. December's apparent 70% drop isn't a real decline: the dataset ends Dec 9, 2011, so that month is ~9 days of data, not a full month.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q2. Top 10 products by revenue, with cumulative % of total</h3>
+          <pre><code class="language-sql">-- Q2. Top 10 products by revenue, with running cumulative % of
+-- total revenue (a quick Pareto / 80-20 check). Window SUM() OVER
+-- an ORDER BY for the running total.
+WITH product_rev AS (
+    SELECT
+        p.StockCode,
+        p.Description,
+        ROUND(SUM(oi.Quantity * oi.UnitPrice), 2) AS revenue
+    FROM order_items oi
+    JOIN products p ON p.StockCode = oi.StockCode
+    -- exclude administrative line items (postage, manual adjustments,
+    -- bank charges, etc.) that aren&#x27;t real products -- otherwise they
+    -- dominate a &quot;top products&quot; list and make it meaningless
+    WHERE p.StockCode NOT IN (&#x27;POST&#x27;,&#x27;DOT&#x27;,&#x27;M&#x27;,&#x27;m&#x27;,&#x27;C2&#x27;,&#x27;D&#x27;,&#x27;S&#x27;,&#x27;BANK CHARGES&#x27;,&#x27;AMAZONFEE&#x27;,&#x27;CRUK&#x27;)
+    GROUP BY p.StockCode
+),
+totals AS (
+    SELECT SUM(revenue) AS grand_total FROM product_rev
+)
+SELECT
+    pr.Description,
+    pr.revenue,
+    ROUND(100.0 * SUM(pr.revenue) OVER (ORDER BY pr.revenue DESC) / t.grand_total, 1) AS cumulative_pct_of_total
+FROM product_rev pr
+CROSS JOIN totals t
+ORDER BY pr.revenue DESC
+LIMIT 10</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>Description</th><th>revenue</th><th>cumulative_pct_of_total</th></tr></thead><tbody><tr><td>REGENCY CAKESTAND 3 TIER</td><td>164762.19</td><td>1.7</td></tr><tr><td>PARTY BUNTING</td><td>98302.98</td><td>2.7</td></tr><tr><td>WHITE HANGING HEART T-LIGHT HOLDER</td><td>97894.5</td><td>3.7</td></tr><tr><td>JUMBO BAG RED RETROSPOT</td><td>92356.03</td><td>4.6</td></tr><tr><td>RABBIT NIGHT LIGHT</td><td>66756.59</td><td>5.3</td></tr><tr><td>PAPER CHAIN KIT 50&#x27;S CHRISTMAS </td><td>63791.94</td><td>6.0</td></tr><tr><td>ASSORTED COLOUR BIRD ORNAMENT</td><td>58959.73</td><td>6.6</td></tr><tr><td>CHILLI LIGHTS</td><td>53768.06</td><td>7.1</td></tr><tr><td>PICNIC BASKET WICKER SMALL</td><td>51041.37</td><td>7.6</td></tr><tr><td>POPCORN HOLDER</td><td>50987.47</td><td>8.2</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> The top 10 products combined are only ~8% of total revenue, led by the Regency Cakestand 3 Tier at under 2% on its own. There's no single hit product driving this business — revenue comes from breadth across the catalog, which matters for inventory planning since no one SKU can be treated as "too big to stock out."</div>
+        </div>
+        <div class="qcard">
+          <h3>Q3. Simplified RFM (Recency / Frequency / Monetary) customer segmentation</h3>
+          <pre><code class="language-sql">-- Q3. Simplified RFM customer segmentation.
+-- Recency = days since last order (relative to the dataset&#x27;s max
+-- date, since this is historical data, not live). Frequency =
+-- distinct orders. Monetary = total net spend.
+-- CTE chain + CASE-based tiering.
+WITH cust_orders AS (
+    SELECT
+        o.CustomerID,
+        COUNT(DISTINCT o.InvoiceNo)                            AS frequency,
+        SUM(oi.Quantity * oi.UnitPrice)                         AS monetary,
+        MAX(o.InvoiceDate)                                      AS last_order
+    FROM orders o
+    JOIN order_items oi ON oi.InvoiceNo = o.InvoiceNo
+    WHERE o.CustomerID IS NOT NULL
+    GROUP BY o.CustomerID
+),
+rfm AS (
+    SELECT
+        CustomerID,
+        frequency,
+        ROUND(monetary, 2)                                                          AS monetary,
+        CAST(julianday((SELECT MAX(InvoiceDate) FROM orders)) - julianday(last_order) AS INT) AS recency_days
+    FROM cust_orders
+)
+SELECT
+    CustomerID,
+    frequency,
+    monetary,
+    recency_days,
+    CASE
+        WHEN recency_days &lt;= 30 AND frequency &gt;= 5  THEN &#x27;VIP&#x27;
+        WHEN recency_days &lt;= 90 AND frequency &gt;= 2  THEN &#x27;Active&#x27;
+        WHEN recency_days &gt; 180                      THEN &#x27;Lost&#x27;
+        ELSE &#x27;At Risk&#x27;
+    END AS segment
+FROM rfm
+ORDER BY monetary DESC
+LIMIT 15</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>CustomerID</th><th>frequency</th><th>monetary</th><th>recency_days</th><th>segment</th></tr></thead><tbody><tr><td>14646</td><td>77</td><td>279489.02</td><td>1</td><td>VIP</td></tr><tr><td>18102</td><td>62</td><td>256438.49</td><td>0</td><td>VIP</td></tr><tr><td>17450</td><td>55</td><td>187482.17</td><td>7</td><td>VIP</td></tr><tr><td>14911</td><td>248</td><td>132572.62</td><td>0</td><td>VIP</td></tr><tr><td>12415</td><td>26</td><td>123725.45</td><td>23</td><td>VIP</td></tr><tr><td>14156</td><td>66</td><td>113384.14</td><td>9</td><td>VIP</td></tr><tr><td>17511</td><td>46</td><td>88125.38</td><td>2</td><td>VIP</td></tr><tr><td>16684</td><td>31</td><td>65892.08</td><td>3</td><td>VIP</td></tr><tr><td>13694</td><td>60</td><td>62653.1</td><td>3</td><td>VIP</td></tr><tr><td>15311</td><td>118</td><td>59419.34</td><td>0</td><td>VIP</td></tr><tr><td>13089</td><td>118</td><td>57385.88</td><td>2</td><td>VIP</td></tr><tr><td>14096</td><td>34</td><td>57120.91</td><td>3</td><td>VIP</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 15 rows.</p>
+          <div class="insight"><b>Insight:</b> Frequency and monetary value don't always track together: the customer with the most orders (248) ranks only 4th by total revenue (£132,572), while the top revenue customer (£279,489) places fewer, larger orders (77) — two different kinds of "best customer" that would need different retention plays.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q4. Revenue and average order value by country, ranked</h3>
+          <pre><code class="language-sql">-- Q4. Revenue and average order value by country, ranked.
+-- 3-way JOIN (orders -&gt; order_items, orders -&gt; customers)
+-- + GROUP BY + RANK().
+SELECT
+    o.Country,
+    COUNT(DISTINCT o.InvoiceNo)                                  AS n_orders,
+    ROUND(SUM(oi.Quantity * oi.UnitPrice), 2)                    AS revenue,
+    ROUND(SUM(oi.Quantity * oi.UnitPrice) * 1.0
+          / COUNT(DISTINCT o.InvoiceNo), 2)                       AS avg_order_value,
+    RANK() OVER (ORDER BY SUM(oi.Quantity * oi.UnitPrice) DESC)   AS revenue_rank
+FROM orders o
+JOIN order_items oi ON oi.InvoiceNo = o.InvoiceNo
+WHERE o.IsCancelled = 0
+GROUP BY o.Country
+ORDER BY revenue_rank
+LIMIT 15</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>Country</th><th>n_orders</th><th>revenue</th><th>avg_order_value</th><th>revenue_rank</th></tr></thead><tbody><tr><td>United Kingdom</td><td>20122</td><td>9003097.96</td><td>447.43</td><td>1</td></tr><tr><td>Netherlands</td><td>95</td><td>285446.34</td><td>3004.7</td><td>2</td></tr><tr><td>EIRE</td><td>288</td><td>283453.96</td><td>984.22</td><td>3</td></tr><tr><td>Germany</td><td>457</td><td>228867.14</td><td>500.8</td><td>4</td></tr><tr><td>France</td><td>392</td><td>209715.11</td><td>534.99</td><td>5</td></tr><tr><td>Australia</td><td>57</td><td>138521.31</td><td>2430.2</td><td>6</td></tr><tr><td>Spain</td><td>90</td><td>61577.11</td><td>684.19</td><td>7</td></tr><tr><td>Switzerland</td><td>54</td><td>57089.9</td><td>1057.22</td><td>8</td></tr><tr><td>Belgium</td><td>98</td><td>41196.34</td><td>420.37</td><td>9</td></tr><tr><td>Sweden</td><td>36</td><td>38378.33</td><td>1066.06</td><td>10</td></tr><tr><td>Japan</td><td>19</td><td>37416.37</td><td>1969.28</td><td>11</td></tr><tr><td>Norway</td><td>36</td><td>36165.44</td><td>1004.6</td><td>12</td></tr></tbody></table></div><p style='font-size:0.78rem;color:var(--muted);margin-top:6px;'>Showing 12 of 15 rows.</p>
+          <div class="insight"><b>Insight:</b> The UK drives the overwhelming majority of revenue (£9.0M) but has the <i>lowest</i> average order value (£447) of any major market. The Netherlands, by contrast, generates far fewer orders but at an average of £3,005 each — a small set of high-volume wholesale buyers, not many small retail ones. Growing the Netherlands segment is a different lever than growing UK order volume.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q5. Repeat vs. one-time customers</h3>
+          <pre><code class="language-sql">-- Q5. Repeat vs. one-time customers: how many of each, and how
+-- much revenue each group is responsible for.
+-- Subquery to classify, then aggregate.
+WITH cust_freq AS (
+    SELECT CustomerID, COUNT(DISTINCT InvoiceNo) AS n_orders
+    FROM orders
+    WHERE CustomerID IS NOT NULL AND IsCancelled = 0
+    GROUP BY CustomerID
+)
+SELECT
+    CASE WHEN cf.n_orders &gt; 1 THEN &#x27;Repeat customer&#x27; ELSE &#x27;One-time customer&#x27; END AS customer_type,
+    COUNT(DISTINCT cf.CustomerID)                                                          AS n_customers,
+    ROUND(SUM(oi.Quantity * oi.UnitPrice), 2)                                              AS total_revenue,
+    ROUND(SUM(oi.Quantity * oi.UnitPrice) * 1.0 / COUNT(DISTINCT cf.CustomerID), 2)         AS avg_revenue_per_customer
+FROM cust_freq cf
+JOIN orders o ON o.CustomerID = cf.CustomerID AND o.IsCancelled = 0
+JOIN order_items oi ON oi.InvoiceNo = o.InvoiceNo
+GROUP BY customer_type</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>customer_type</th><th>n_customers</th><th>total_revenue</th><th>avg_revenue_per_customer</th></tr></thead><tbody><tr><td>One-time customer</td><td>1494</td><td>616311.73</td><td>412.52</td></tr><tr><td>Repeat customer</td><td>2845</td><td>8295096.17</td><td>2915.68</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> Repeat customers (2,845) outnumber one-time customers (1,494) roughly 2-to-1, but the revenue gap is far bigger: repeat customers generate £8.3M (~93% of revenue) at an average £2,916 each, versus £412 for one-time buyers — about 7x the per-customer value. Retention, not acquisition, is where the revenue actually lives in this business.</div>
+        </div>
+        <div class="qcard">
+          <h3>Q6. Returns analysis: which products get returned most relative to gross sales</h3>
+          <pre><code class="language-sql">-- Q6. Returns analysis: which products generate the most
+-- returned value, and what share of their gross sales does
+-- that represent? Two CTEs (gross sales, returns) joined
+-- together -- faster and cleaner than a correlated subquery
+-- per row, which is what this started as before it got
+-- rewritten.
+WITH gross AS (
+    SELECT oi.StockCode, SUM(oi.Quantity * oi.UnitPrice) AS gross_sales
+    FROM order_items oi
+    JOIN orders o ON o.InvoiceNo = oi.InvoiceNo
+    WHERE o.IsCancelled = 0
+      AND oi.StockCode NOT IN (&#x27;POST&#x27;,&#x27;DOT&#x27;,&#x27;M&#x27;,&#x27;m&#x27;,&#x27;C2&#x27;,&#x27;D&#x27;,&#x27;S&#x27;,&#x27;BANK CHARGES&#x27;,&#x27;AMAZONFEE&#x27;,&#x27;CRUK&#x27;)
+    GROUP BY oi.StockCode
+),
+returns AS (
+    SELECT oi.StockCode, -SUM(oi.Quantity * oi.UnitPrice) AS returned_value
+    FROM order_items oi
+    JOIN orders o ON o.InvoiceNo = oi.InvoiceNo
+    WHERE o.IsCancelled = 1
+      AND oi.StockCode NOT IN (&#x27;POST&#x27;,&#x27;DOT&#x27;,&#x27;M&#x27;,&#x27;m&#x27;,&#x27;C2&#x27;,&#x27;D&#x27;,&#x27;S&#x27;,&#x27;BANK CHARGES&#x27;,&#x27;AMAZONFEE&#x27;,&#x27;CRUK&#x27;)
+    GROUP BY oi.StockCode
+)
+SELECT
+    p.Description,
+    ROUND(r.returned_value, 2)                              AS returned_value,
+    ROUND(g.gross_sales, 2)                                  AS gross_sales,
+    ROUND(100.0 * r.returned_value / g.gross_sales, 1)       AS pct_of_gross_returned
+FROM returns r
+JOIN gross g ON g.StockCode = r.StockCode
+JOIN products p ON p.StockCode = r.StockCode
+WHERE g.gross_sales &gt; 500
+ORDER BY r.returned_value DESC
+LIMIT 10</code></pre>
+          <div class='table-scroll'><table class='result'><thead><tr><th>Description</th><th>returned_value</th><th>gross_sales</th><th>pct_of_gross_returned</th></tr></thead><tbody><tr><td>PAPER CRAFT , LITTLE BIRDIE</td><td>168469.6</td><td>168469.6</td><td>100.0</td></tr><tr><td>MEDIUM CERAMIC TOP STORAGE JAR</td><td>77479.64</td><td>81700.92</td><td>94.8</td></tr><tr><td>REGENCY CAKESTAND 3 TIER</td><td>9722.55</td><td>174484.74</td><td>5.6</td></tr><tr><td>WHITE HANGING HEART T-LIGHT HOLDER</td><td>6624.3</td><td>104518.8</td><td>6.3</td></tr><tr><td>FAIRY CAKE FLANNEL ASSORTED COLOUR</td><td>6591.42</td><td>18069.28</td><td>36.5</td></tr><tr><td>PANTRY CHOPPING BOARD</td><td>4803.06</td><td>5868.5</td><td>81.8</td></tr><tr><td>DOORMAT FAIRY CAKE</td><td>4554.9</td><td>23888.81</td><td>19.1</td></tr><tr><td>GIN + TONIC DIET METAL SIGN</td><td>3775.33</td><td>27074.07</td><td>13.9</td></tr><tr><td>TEA TIME PARTY BUNTING</td><td>3692.95</td><td>11290.12</td><td>32.7</td></tr><tr><td>FELTCRAFT DOLL MOLLY</td><td>3512.65</td><td>12016.34</td><td>29.2</td></tr></tbody></table></div>
+          <div class="insight"><b>Insight:</b> Two products stand out from genuine return-rate noise: "Paper Craft, Little Birdie" was returned at 100% of its gross sales (one large cancelled order), and a ceramic storage jar at ~95%. That level of concentration in a single product points to a defective batch or a listing/fulfillment error — worth flagging operationally, not just noting as a return-rate stat.</div>
+        </div>
+
+  <footer>
+    Full SQL and the SQLite database are in the
+    <a href="../index.html">repo</a>. Every query above ran clean against the actual database —
+    no hand-typed numbers.
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script>hljs.highlightAll();</script>
+  </footer>
+</div>
+</body>
+</html>
