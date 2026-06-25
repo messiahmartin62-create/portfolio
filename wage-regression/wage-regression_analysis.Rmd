@@ -1,0 +1,379 @@
+---
+title: "Returns to Education & the Gender Wage Gap — A Mincer Earnings Regression"
+author: "Sai"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+```
+
+## Overview
+
+This report estimates a **Mincer earnings equation** — the workhorse model of labor
+economics relating log wages to education and experience — on 526 individuals from the
+1976 Current Population Survey (CPS), collected by Henry Farber and distributed as the
+`wage1` dataset in Wooldridge's *Introductory Econometrics: A Modern Approach*. It's the
+econometrics counterpart to the rest of this portfolio: instead of describing data (the
+Excel/R sports and business projects) or querying it (the SQL projects), this project uses
+it to make and test statistical inferences — multiple regression, nested model comparisons,
+heteroskedasticity testing, and hand-derived robust standard errors — the analytical core
+of an economics degree.
+
+The central question: **how much of the raw gender wage gap survives once you control for
+human capital (education, experience, tenure) and occupation/industry sorting?**
+
+```{r load}
+d <- read.csv("wage1.csv")
+cat("Observations:", nrow(d), " | Variables:", ncol(d), "\n")
+str(d[, c("wage","lwage","educ","exper","tenure","female","married","nonwhite")])
+```
+
+**Data quality note (disclosed up front, not buried in a footnote):** the dataset's own
+documentation flags that `exper` (total labor-market experience) and `tenure` (years with
+current employer) are self-reported and occasionally inconsistent — `tenure` cannot
+logically exceed `exper`, yet `r sum(d$tenure > d$exper)` of `r nrow(d)` observations
+(`r round(mean(d$tenure > d$exper)*100,1)`%) violate that. Consistent with how Wooldridge
+distributes the data, I keep these rows rather than silently dropping them, and revisit
+this in the Limitations section.
+
+## Exploratory Data Analysis
+
+### Wage distribution
+
+```{r eda-wage}
+ggplot(d, aes(x = wage)) +
+  geom_histogram(bins = 30, fill = "#4f46e5", color = "white") +
+  labs(title = "Hourly Wage Is Right-Skewed", subtitle = "Why we model log(wage), not wage",
+       x = "Wage ($/hr, 1976)", y = "Count") +
+  theme_minimal(base_size = 13)
+```
+
+Wages range from \$`r min(d$wage)` to \$`r max(d$wage)`/hr with a mean of
+\$`r round(mean(d$wage),2)` but a median of only \$`r round(median(d$wage),2)` — the
+right skew typical of earnings data, and the textbook reason to model `log(wage)` instead
+of the raw level: it both compresses the skew and lets coefficients be read as approximate
+percentage changes.
+
+### Raw gender gap, before any controls
+
+```{r eda-gender}
+gap_tbl <- d %>%
+  group_by(female) %>%
+  summarise(mean_wage = mean(wage), n = n()) %>%
+  mutate(group = ifelse(female == 1, "Female", "Male"))
+print(gap_tbl)
+raw_gap_pct <- (gap_tbl$mean_wage[gap_tbl$female==0] - gap_tbl$mean_wage[gap_tbl$female==1]) /
+  gap_tbl$mean_wage[gap_tbl$female==0] * 100
+cat(sprintf("Raw gap: %.1f%%\n", raw_gap_pct))
+```
+
+Men in this sample average \$`r round(gap_tbl$mean_wage[gap_tbl$female==0],2)`/hr vs.
+\$`r round(gap_tbl$mean_wage[gap_tbl$female==1],2)`/hr for women — a raw gap of
+**`r round(raw_gap_pct,1)`%**. That number conflates two very different things: women in
+this sample may have less education/experience on average, *or* women may be paid less for
+the *same* human capital. The regressions below try to separate those two stories.
+
+### Education and experience vs. log wage
+
+```{r eda-scatter}
+p1 <- ggplot(d, aes(x = educ, y = lwage)) +
+  geom_jitter(width = 0.2, alpha = 0.4, color = "#4f46e5") +
+  geom_smooth(method = "lm", se = FALSE, color = "#1e1b4b") +
+  labs(title = "Education vs. Log Wage", x = "Years of education", y = "log(wage)") +
+  theme_minimal(base_size = 12)
+
+p2 <- ggplot(d, aes(x = exper, y = lwage)) +
+  geom_jitter(width = 0.3, alpha = 0.4, color = "#0ea5e9") +
+  geom_smooth(method = "loess", se = FALSE, color = "#0c4a6e") +
+  labs(title = "Experience vs. Log Wage", subtitle = "Loess curve shows diminishing returns",
+       x = "Years of experience", y = "log(wage)") +
+  theme_minimal(base_size = 12)
+
+p1
+p2
+```
+
+The education relationship looks roughly linear; the experience relationship visibly bends
+over — wages rise with experience but at a decreasing rate, which is why the models below
+include `exper` *and* `exper²`.
+
+### Correlation among continuous predictors
+
+```{r eda-corr}
+round(cor(d[, c("educ","exper","tenure","lwage")]), 3)
+```
+
+`exper` and `tenure` correlate at 0.50 — expected, since people with more total labor-market
+experience also tend to have longer job tenure — but not high enough to cause serious
+multicollinearity problems in the models below.
+
+## Model 1: Baseline Mincer Equation
+
+$$\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 exper^2 + \beta_4 tenure + u$$
+
+```{r model1}
+m1 <- lm(lwage ~ educ + exper + expersq + tenure, data = d)
+summary(m1)
+```
+
+**Reading the coefficients (semi-log form, so each coefficient ≈ a % change in wage):**
+
+- Each additional year of education is associated with a
+  **`r round(coef(m1)["educ"]*100,2)`%** increase in wage, holding experience and tenure
+  fixed (p `r ifelse(summary(m1)$coefficients["educ",4]<0.001,"< 0.001",round(summary(m1)$coefficients["educ",4],3))`).
+- Experience has a positive but *diminishing* return: the quadratic term is negative
+  (`r round(coef(m1)["expersq"],5)`, p `r ifelse(summary(m1)$coefficients["expersq",4]<0.001,"< 0.001",round(summary(m1)$coefficients["expersq",4],3))`),
+  meaning the wage gain from one more year of experience shrinks as experience accumulates.
+- Solving $-\beta_2 / (2\beta_3) = 0$ for the turning point:
+
+```{r turning-point}
+turning_pt <- -coef(m1)["exper"] / (2 * coef(m1)["expersq"])
+cat(sprintf("Experience turning point: %.1f years\n", turning_pt))
+```
+
+  Predicted wage (holding education/tenure fixed) peaks around
+  **`r round(turning_pt,1)` years** of experience and is predicted to *decline* after that —
+  a standard, textbook-consistent finding for cross-sectional wage data.
+- Tenure adds a further **`r round(coef(m1)["tenure"]*100,2)`%** per year *with the same
+  employer*, on top of general experience — consistent with firm-specific human capital /
+  internal promotion effects.
+- The model explains **`r round(summary(m1)$r.squared*100,1)`%** of the variation in log
+  wages (adj. R² = `r round(summary(m1)$adj.r.squared,3)`) — human capital alone leaves most
+  of the variation in earnings unexplained, which motivates adding more controls below.
+
+## Model 2: Adding Demographic Controls
+
+```{r model2}
+m2 <- lm(lwage ~ educ + exper + expersq + tenure + female + married + nonwhite, data = d)
+summary(m2)
+```
+
+```{r model2-interp}
+female_pct_m2 <- (exp(coef(m2)["female"]) - 1) * 100
+```
+
+The headline number: **female** carries a coefficient of `r round(coef(m2)["female"],4)`,
+i.e. women earn about **`r round(abs(female_pct_m2),1)`%** less than men with *identical*
+education, experience, and tenure (p < 0.001) — almost as large as the unconditional raw
+gap. `married` (+`r round(coef(m2)["married"]*100,1)`%) and `nonwhite`
+(`r round(coef(m2)["nonwhite"]*100,1)`%) are not statistically distinguishable from zero in
+this sample (p = `r round(summary(m2)$coefficients["married",4],3)` and
+`r round(summary(m2)$coefficients["nonwhite",4],3)` respectively) — this dataset simply
+doesn't have the power, or the gap, to detect those effects.
+
+**Did adding this block of variables matter, jointly?**
+
+```{r anova-1v2}
+anova(m1, m2)
+```
+
+The F-test rejects the null that female/married/nonwhite jointly add nothing
+(p < 0.001) — even though two of the three are individually insignificant, the block is
+clearly informative as a whole (driven by `female`).
+
+## Model 3: Adding Occupation & Region
+
+```{r model3}
+m3 <- lm(lwage ~ educ + exper + expersq + tenure + female + married + nonwhite +
+            profocc + clerocc + servocc + south + west + northcen + smsa, data = d)
+summary(m3)
+```
+
+```{r model3-interp}
+female_pct_m3 <- (exp(coef(m3)["female"]) - 1) * 100
+```
+
+This is the most interesting result in the report. If the gender wage gap were mostly a
+story of women sorting into lower-paying occupations or regions, controlling for occupation
+and region should shrink the `female` coefficient substantially. It barely moves: from
+**`r round(abs(female_pct_m2),1)`%** in Model 2 to **`r round(abs(female_pct_m3),1)`%**
+here. Occupational and regional sorting explain only a small slice of the gap in this
+sample — most of it persists *within* occupation and region.
+
+The occupation/region controls themselves are informative on their own terms: professional
+occupations carry a **+`r round(coef(m3)["profocc"]*100,1)`%** premium and service
+occupations a **`r round(coef(m3)["servocc"]*100,1)`%** penalty (both p < 0.01) relative to
+the baseline occupation category, and living in a metro area (`smsa`) is worth
+**+`r round(coef(m3)["smsa"]*100,1)`%** (p < 0.001). Clerical occupation and the regional
+dummies (south/west/northcen) are not statistically significant here.
+
+```{r anova-2v3}
+anova(m2, m3)
+```
+
+The occupation/region block is also jointly significant (p < 0.001) — it improves the
+model's fit, just not by reshaping the gender coefficient much.
+
+### Model comparison summary
+
+```{r model-compare-table}
+comp <- data.frame(
+  Model = c("1: Human capital", "2: + demographics", "3: + occupation/region"),
+  R2 = c(summary(m1)$r.squared, summary(m2)$r.squared, summary(m3)$r.squared),
+  Adj_R2 = c(summary(m1)$adj.r.squared, summary(m2)$adj.r.squared, summary(m3)$adj.r.squared),
+  Female_coef_pct = c(NA, round(female_pct_m2,1), round(female_pct_m3,1))
+)
+comp$R2 <- round(comp$R2, 3)
+comp$Adj_R2 <- round(comp$Adj_R2, 3)
+comp
+```
+
+```{r gap-chart, fig.height=5}
+gap_df <- data.frame(
+  stage = factor(c("Raw gap\n(no controls)","+ Human capital\n+ demographics","+ Occupation\n+ region"),
+                 levels = c("Raw gap\n(no controls)","+ Human capital\n+ demographics","+ Occupation\n+ region")),
+  gap = c(raw_gap_pct, abs(female_pct_m2), abs(female_pct_m3))
+)
+ggplot(gap_df, aes(x = stage, y = gap)) +
+  geom_col(fill = "#4f46e5", width = 0.6) +
+  geom_text(aes(label = sprintf("%.1f%%", gap)), vjust = -0.5, size = 5, fontface = "bold") +
+  labs(title = "Gender Wage Gap Barely Narrows After Adding Controls",
+       subtitle = "Female wage penalty across model specifications", x = NULL, y = "Wage gap (%)") +
+  ylim(0, max(gap_df$gap) * 1.2) +
+  theme_minimal(base_size = 13)
+```
+
+## Heteroskedasticity: Does It Matter Here?
+
+OLS standard errors assume constant error variance (homoskedasticity). Earnings data
+usually violates this in *levels* — high earners have more dispersed pay than low earners.
+A Breusch-Pagan test on the squared residuals confirms it:
+
+```{r bp-levels}
+m3_level <- lm(wage ~ educ + exper + expersq + tenure + female + married + nonwhite +
+                  profocc + clerocc + servocc + south + west + northcen + smsa, data = d)
+u_level <- resid(m3_level)
+bp_level <- lm(u_level^2 ~ educ + exper + expersq + tenure + female + married + nonwhite +
+                  profocc + clerocc + servocc + south + west + northcen + smsa, data = d)
+n <- nrow(d); k_bp <- length(coef(bp_level)) - 1
+bp_stat_level <- n * summary(bp_level)$r.squared
+bp_p_level <- 1 - pchisq(bp_stat_level, df = k_bp)
+cat(sprintf("Levels model (wage ~ ...): BP stat = %.2f, df = %d, p = %.2e\n", bp_stat_level, k_bp, bp_p_level))
+```
+
+Strongly significant (p `r format(bp_p_level, scientific=TRUE, digits=3)`) — exactly why
+labor economists model `log(wage)`, not `wage`, in the first place. Re-running the same
+test on the **log** model:
+
+```{r bp-logs}
+u3 <- resid(m3)
+bp_log <- lm(u3^2 ~ educ + exper + expersq + tenure + female + married + nonwhite +
+                  profocc + clerocc + servocc + south + west + northcen + smsa, data = d)
+bp_stat_log <- n * summary(bp_log)$r.squared
+bp_p_log <- 1 - pchisq(bp_stat_log, df = k_bp)
+cat(sprintf("Log model (lwage ~ ...): BP stat = %.2f, df = %d, p = %.3f\n", bp_stat_log, k_bp, bp_p_log))
+```
+
+The log transform does most of the work: heteroskedasticity is no longer statistically
+significant at conventional levels (p = `r round(bp_p_log,3)`). There's a mild residual
+pattern in the tails though:
+
+```{r resid-by-tercile}
+ft <- fitted(m3)
+grp <- cut(ft, quantile(ft, c(0, 1/3, 2/3, 1)), include.lowest = TRUE, labels = c("Low","Mid","High"))
+tapply(u3, grp, sd)
+```
+
+Residual spread is noticeably wider in the top fitted-value tercile, so as a robustness
+check (best practice regardless of the test result) I compute **heteroskedasticity-robust
+(White/HC1) standard errors by hand** — no `sandwich`/`lmtest` package, just the sandwich
+formula directly:
+
+$$\widehat{Var}_{HC1}(\hat\beta) = (X'X)^{-1} X' \,\text{diag}(\hat u_i^2)\, X (X'X)^{-1} \cdot \frac{n}{n-k}$$
+
+```{r robust-se}
+X <- model.matrix(m3)
+u <- resid(m3)
+n <- nrow(X); k <- ncol(X)
+XtX_inv <- solve(t(X) %*% X)
+meat <- t(X) %*% diag(u^2) %*% X * (n / (n - k))
+vcov_hc1 <- XtX_inv %*% meat %*% XtX_inv
+se_robust <- sqrt(diag(vcov_hc1))
+se_classical <- sqrt(diag(vcov(m3)))
+
+se_compare <- data.frame(
+  Coefficient = names(coef(m3)),
+  Estimate = round(coef(m3), 4),
+  SE_classical = round(se_classical, 4),
+  SE_robust = round(se_robust, 4),
+  p_robust = round(2 * pt(-abs(coef(m3) / se_robust), df = n - k), 4)
+)
+se_compare
+```
+
+The robust and classical standard errors are close for almost every coefficient —
+`tenure`'s SE rises the most (`r round(se_classical["tenure"],4)` → `r round(se_robust["tenure"],4)`,
+about `r round(se_robust["tenure"]/se_classical["tenure"],2)`x) — but no
+significance conclusion at the 5% level flips either direction. The mild heteroskedasticity
+detected above doesn't change the substantive findings; it's reported because checking is
+the correct intermediate-econometrics move, not because it overturns anything.
+
+## Residual Diagnostics
+
+```{r diagnostics}
+par(mfrow = c(1, 2))
+plot(fitted(m3), resid(m3), pch = 16, col = rgb(0.31, 0.27, 0.9, 0.4),
+     main = "Residuals vs. Fitted", xlab = "Fitted log(wage)", ylab = "Residual")
+abline(h = 0, col = "red", lty = 2)
+qqnorm(resid(m3), pch = 16, col = rgb(0.31, 0.27, 0.9, 0.4), main = "Normal Q-Q")
+qqline(resid(m3), col = "red")
+```
+
+Residuals are centered on zero with a slight funnel/widening at higher fitted values
+(consistent with the tercile check above) and roughly normal in the middle of the
+distribution with some departure in the tails — typical for wage data, and not severe
+enough to invalidate the conclusions, especially since the robust SEs confirm the same
+inferences.
+
+## Limitations
+
+This is intermediate applied econometrics, not a causal study, and I want to be specific
+about why:
+
+**Omitted ability bias.** The biggest threat to interpreting `educ`'s coefficient as a
+*causal* return to schooling is unobserved ability: people with more innate ability or
+motivation likely get more education *and* earn more for reasons unrelated to schooling
+itself, which biases the education coefficient upward. The standard fix — instrumenting
+education with something correlated with schooling but not ability (e.g., compulsory
+schooling laws, distance to college) — isn't implemented here; this report estimates an
+association, not a causal effect.
+
+**External validity.** This is 1976 U.S. CPS data. Wage *levels* are obviously irrelevant
+today, and the labor market has changed enough (composition of occupations, female labor
+force participation, returns to specific majors) that even the relative patterns shouldn't
+be assumed to hold in 2026. The methodology generalizes; the numbers don't.
+
+**Self-reported, possibly mismeasured data.** As flagged at the top, `r sum(d$tenure > d$exper)`
+of `r nrow(d)` observations have `tenure > exper`, a logical impossibility, indicating
+measurement error in at least one of those two variables for a small share of the sample.
+Measurement error in regressors generally biases coefficients toward zero (attenuation
+bias) rather than away from it.
+
+**No interaction effects tested.** A natural extension — does the return to education
+differ by gender, or does the experience penalty/premium differ by occupation — would
+require interaction terms not estimated here.
+
+## Conclusion
+
+Three nested regressions on 1976 CPS data show: education carries a statistically robust
+return (~`r round(coef(m1)["educ"]*100,1)`% per year in the simplest specification),
+experience has diminishing returns peaking around `r round(turning_pt,0)` years, and a
+gender wage gap of roughly `r round(abs(female_pct_m2),0)`–`r round(abs(female_pct_m3),0)`%
+persists even after controlling for education, experience, tenure, marital status,
+occupation, and region — meaning the gap is not primarily explained by women and men
+sorting into different jobs or having different qualifications, at least along the
+dimensions this dataset measures. Heteroskedasticity-robust standard errors were derived by
+hand and confirm the findings aren't an artifact of a violated OLS assumption. The honest
+caveat is that none of this is causal without an identification strategy for education and
+without richer controls for productivity-relevant traits this survey didn't collect.

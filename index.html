@@ -99,11 +99,12 @@
   <header>
     <h1>Sai — Data Analyst Portfolio</h1>
     <p class="tagline">
-      Six end-to-end analyses across three tools. Four sports/business datasets, each built
+      Seven end-to-end analyses across three tools. Four sports/business datasets, each built
       twice — once as an Excel workbook (live formulas, pivot tables, charts) and once as an
       R Markdown report (dplyr + ggplot2) — same datasets, same logic, two tools side by side.
-      Two more are SQL projects: real data normalized into relational SQLite databases and
-      queried with joins, CTEs, and window functions.
+      Two are SQL projects: real data normalized into relational SQLite databases and queried
+      with joins, CTEs, and window functions. The seventh is an econometrics project — a Mincer
+      wage regression with hand-derived robust standard errors and hypothesis testing.
     </p>
     <div class="links">
       <a href="https://github.com/messiahmartin62-create/portfolio">View source on GitHub</a>
@@ -209,6 +210,25 @@
           <a class="btn primary" href="online-retail/online-retail_analysis.html">View Report</a>
           <a class="btn secondary" href="online-retail/online_retail.db">Download .db</a>
           <a class="btn secondary" href="online-retail/queries.sql">View Queries</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="images/wage-regression.png" alt="Gender wage gap across model specifications chart">
+      <div class="card-body">
+        <h2>Wage Regression &amp; the Gender Pay Gap (Econometrics)</h2>
+        <p class="desc">
+          Mincer earnings regression on 1976 CPS data (526 workers): three nested OLS models,
+          hand-derived heteroskedasticity-robust (HC1) standard errors, a Breusch-Pagan test, and
+          an honest look at how little the gender wage gap shrinks after controlling for
+          education, experience, tenure, occupation, and region.
+        </p>
+        <p class="tech"><span>OLS Regression</span><span>Robust SEs</span><span>Hypothesis Testing</span><span>R / rmarkdown</span></p>
+        <div class="actions">
+          <a class="btn primary" href="wage-regression/wage-regression_analysis.html">View R Report</a>
+          <a class="btn secondary" href="wage-regression/wage-regression_analysis.Rmd">View .Rmd Source</a>
+          <a class="btn secondary" href="wage-regression/wage1.csv">Download Data</a>
         </div>
       </div>
     </div>

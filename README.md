@@ -2,10 +2,11 @@
 
 **[View the live portfolio site →](https://messiahmartin62-create.github.io/portfolio/)** (charts, descriptions, and direct links to each report and workbook — no need to dig through folders)
 
-Six end-to-end analyses across three tools. Four are built twice — once as an Excel workbook
-(pivot tables, live formulas, charts) and once as an R Markdown report (dplyr + ggplot2). The
-other two are SQL projects: real datasets normalized into relational SQLite databases and
-queried with joins, CTEs, and window functions.
+Seven end-to-end analyses across three tools. Four are built twice — once as an Excel
+workbook (pivot tables, live formulas, charts) and once as an R Markdown report (dplyr +
+ggplot2). Two are SQL projects: real datasets normalized into relational SQLite databases and
+queried with joins, CTEs, and window functions. The seventh is an econometrics project: an OLS
+wage regression with hand-derived robust standard errors and formal hypothesis testing.
 
 ## Projects
 
@@ -45,6 +46,18 @@ queried with joins, CTEs, and window functions.
   window functions (`LAG()`, running `SUM() OVER`), RFM customer
   segmentation, and returns analysis.
 
+- **[Wage Regression & the Gender Pay Gap (Econometrics)](wage-regression/)** —
+  Mincer earnings regression on 526 workers from the 1976 CPS (Wooldridge's
+  canonical `wage1` dataset). Three nested OLS models (human capital →
+  demographics → occupation/region), an experience-turning-point calculation,
+  a Breusch-Pagan heteroskedasticity test, hand-derived White/HC1
+  robust standard errors (matrix algebra, no `sandwich`/`lmtest` package),
+  nested F-tests, residual diagnostics, and an honest causality/
+  omitted-variable-bias discussion. The headline finding: the gender wage
+  gap barely narrows after controlling for occupation and region — most of
+  it persists within job categories, not because of how men and women sort
+  into them.
+
 ## How each project folder is organized
 
 **Excel + R projects** (`nba/`, `nfl/`, `video-games/`, `finance/`):
@@ -62,6 +75,15 @@ queried with joins, CTEs, and window functions.
 - `*_analysis.html` — the rendered report: each query, its result, and a
   written insight grounded in the actual output
 
+**Econometrics project** (`wage-regression/`):
+- `wage1.csv` — the raw dataset, included so the `.Rmd` runs end-to-end with
+  no external dependency
+- `wage-regression_analysis.Rmd` — the R Markdown source (open in RStudio to
+  re-run the full regression pipeline)
+- `wage-regression_analysis.html` — the rendered report, viewable in any
+  browser
+
 ## Stack
 
-Excel (formulas, pivot tables, charts) · R (dplyr, ggplot2, rmarkdown/knitr) · SQL (SQLite)
+Excel (formulas, pivot tables, charts) · R (dplyr, ggplot2, rmarkdown/knitr) · SQL (SQLite) ·
+Applied econometrics (OLS, robust standard errors, hypothesis testing)
