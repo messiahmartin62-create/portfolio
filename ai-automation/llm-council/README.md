@@ -68,8 +68,8 @@ stage sees, what it must return, and how its output feeds the next stage.
 - **Keeping five roles distinct.** "Advisor overlap" is one of the failure modes I score against. Each role has its own
   job and its own five-point output format, and the advisors answer in parallel without seeing each other, so they
   can't drift toward one consensus answer.
-- **Making peer review actually anonymous.** Relabeling responses with letters wasn't enough, because advisors mention their own
-  role in their text. The app scrubs every advisor name out of the responses and rotates the order for each reviewer,
+- **Making peer review actually anonymous.** Relabeling responses with letters isn't enough on its own, since an advisor's
+  text can still give away its role. The app scrubs every advisor name out of the responses and rotates the order for each reviewer,
   while the Chairman still gets the key.
 - **Defining what "good" means.** Every run is scored on accuracy, clarity, usefulness, actionability and reasoning
   quality, against named failure modes (hallucination, weak synthesis, too much jargon, no actionable next step,
@@ -102,6 +102,6 @@ stage sees, what it must return, and how its output feeds the next stage.
 
 - Structure beats a clever prompt: fixed output formats per role made the answers comparable and the synthesis much
   easier to check.
-- Anonymity has to be enforced in code, not just requested in a prompt; models name themselves unless you remove it.
+- Anonymity has to be enforced in code, not just requested in a prompt: the app strips the names before review.
 - Next: turn the Markdown test cases into automated evaluations of real model output, so a change to a role prompt is
   scored before it goes live.
