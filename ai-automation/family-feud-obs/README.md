@@ -84,10 +84,17 @@ iterations. Writing specs an agent can verify against is the skill this project 
 
 ## Screenshots
 
-<!-- screenshot: family-feud-board.png — the survey board on stream with the webcam space below -->
-<!-- screenshot: wheel-of-fortune-spin.png — the wheel mid-spin over the puzzle board, with the control panel beside it -->
+![The survey game's board as OBS sees it (transparent overlay, shown here on a dark backdrop), mid-round with one strike](../../images/ai/game-family-feud-board.jpg)
+*The survey game's board as OBS sees it (transparent overlay, shown here on a dark backdrop), mid-round with one strike.*
 
-*Screenshots coming soon.*
+![The operator's control panel](../../images/ai/game-family-feud-control.jpg)
+*The operator's control panel: every action has a hotkey; the answer key never goes on stream.*
+
+![The puzzle game's board in round 1, with letters called and contestant totals](../../images/ai/game-wheel-board.jpg)
+*The puzzle game's board in round 1, with letters called and contestant totals.*
+
+![The wheel game's control panel](../../images/ai/game-wheel-control.jpg)
+*The wheel game's control panel: rounds, the wheel, letter counts and contestants.*
 
 ## What I learned / what's next
 

@@ -67,11 +67,14 @@ project's instructions file holds the architectural rules so every new coding se
 
 ## Screenshots
 
-<!-- screenshot: roundtable-desktop.png — the Roundtable home: debrief plus a tile per agent -->
-<!-- screenshot: week-calendar.png — the self-scaling week calendar with the message box and time breakdown -->
-<!-- screenshot: batch-day-phone.png — a confirmed batch recording day and the phone teleprompter -->
+![Opening Warehouse](../../images/ai/warehouse-gate.jpg)
+*Opening Warehouse: the locked gate (drag the key into the padlock). The whole app is drawn as a construction site in SVG/CSS.*
 
-*Screenshots coming soon.*
+![The week](../../images/ai/warehouse-week.jpg)
+*The week: a self-scaling time-block calendar with the plain-language message box ("Edit video tomorrow at 2pm for 90 min").*
+
+![Batch record days and the runway calculator](../../images/ai/warehouse-runway.jpg)
+*Batch record days and the runway calculator: how long one recording day lasts at different posting paces.*
 
 ## What I learned / what's next
 

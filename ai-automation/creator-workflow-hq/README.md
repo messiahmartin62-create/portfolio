@@ -66,11 +66,14 @@ I designed and directed the whole system and built it with AI coding agents (Cla
 
 ## Screenshots
 
-<!-- screenshot: roundtable.png — the Roundtable home: daily debrief and a tile per agent -->
-<!-- screenshot: agent-card.png — an agent's page: its card, idea tray and conversation -->
-<!-- screenshot: agent-university.png — Agent University: teaching an agent from a video and the lessons it saved -->
+![The Tip Scout's page on the Roundtable](../../images/ai/hq-tip-scout.jpg)
+*The Tip Scout's page on the Roundtable: video ideas mined from creators' tips, with "taught by N" counts, waiting for me to ship or dismiss.*
 
-*Screenshots coming soon.*
+![The Video Editor's page](../../images/ai/hq-video-editor.jpg)
+*The Video Editor's page: drop a raw clip in, drafts come back with what was cut and why (79% cut on this one).*
+
+![Agent University](../../images/ai/hq-agent-university.jpg)
+*Agent University: teach any agent from a video or text; each one keeps its own lessons.*
 
 ## What I learned / what's next
 

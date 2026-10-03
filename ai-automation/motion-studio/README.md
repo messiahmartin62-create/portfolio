@@ -71,10 +71,8 @@ is the skill I used most here.
 
 ## Screenshots
 
-<!-- screenshot: motion-studio-two-lanes.png — the "two lanes" graphic over a talking-head frame -->
-<!-- screenshot: motion-studio-remotion-studio.png — Remotion Studio with the composition list -->
-
-*Screenshots coming soon.*
+![Stills rendered straight from the Remotion project](../../images/ai-motion-studio.jpg)
+*Stills rendered straight from the Remotion project: keyword pills, the "two lanes" and "parasocial" story graphics, lower-third pills, and the blue and warm light-leak transitions.*
 
 ## What I learned / what's next
 

@@ -93,10 +93,11 @@ stage sees, what it must return, and how its output feeds the next stage.
 
 ## Screenshots
 
-<!-- screenshot: council-boardroom.png — a council sitting in the app, advisors thinking in parallel -->
-<!-- screenshot: council-verdict.png — the Chairman's verdict with next steps and hand-offs -->
+![The council in Warehouse](../../images/ai/council-roles.jpg)
+*The council in Warehouse: five advisors and the Chairman, with a memory of past sittings.*
 
-*Screenshots coming soon.*
+![A real sitting](../../images/ai/council-verdict.jpg)
+*A real sitting: the Chairman's verdict, what to do next, what to avoid and a confidence level, saved to the council's notes.*
 
 ## What I learned / what's next
 
