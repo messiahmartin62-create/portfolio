@@ -8,6 +8,9 @@ ggplot2). Two are SQL projects: real datasets normalized into relational SQLite 
 queried with joins, CTEs, and window functions. The seventh is an econometrics project: an OLS
 wage regression with hand-derived robust standard errors and formal hypothesis testing.
 
+Also: **[AI & Automation](#ai--automation)**, five systems I designed and built with AI coding agents, including a
+multi-agent content team, a workflow app and an LLM council.
+
 ## Projects
 
 - **[NBA Stat Projections](nba/)** — per-game scoring/rebounding/assist rates
@@ -58,6 +61,34 @@ wage regression with hand-derived robust standard errors and formal hypothesis t
   it persists within job categories, not because of how men and women sort
   into them.
 
+## AI & Automation
+
+Software I design and direct, built with AI coding agents (Claude Code): I write the specs and safety rules, review
+every change, and test it in real use. These run my own content work every day. Each folder is a case study with an
+architecture diagram; **the source code is private and available on request.**
+
+- **[Warehouse](ai-automation/warehouse/)** — a local-first Node.js + SQLite app that runs my content workflow:
+  it time-blocks my week, manages my video idea pipeline and recording days, and syncs confirmed days to Google
+  Calendar. Its Roundtable gives me one place to direct five Claude Code agents and an LLM council, each with
+  scoped permissions. 207 automated tests.
+
+- **[Creator Workflow HQ](ai-automation/creator-workflow-hq/)** — a team of AI agents on Claude Code that mine
+  YouTube for tips, write scripts in my voice, edit raw clips into drafts (Python engines over ffmpeg, WhisperX and
+  Remotion) and audit the account. Each agent learns into its own memory, runs on a schedule, and has
+  least-privilege permissions so outside content can't take it over.
+
+- **[LLM Council](ai-automation/llm-council/)** — a multi-agent decision system: five AI advisors with opposing
+  roles answer independently, review each other anonymously, and a Chairman turns it into a verdict with next steps
+  that become hand-offs to other agents. Scored against written evaluation criteria and test cases.
+
+- **[Motion Studio](ai-automation/motion-studio/)** — a Remotion (React + TypeScript) library of on-brand motion
+  graphics timed to my speech, rendered as transparent ProRes 4444 video and composited onto edits automatically by
+  my video-editing agent.
+
+- **[Game Show Overlays for OBS](ai-automation/family-feud-obs/)** — two fan-made, browser-based game shows for
+  live streams (inspired by Family Feud and Wheel of Fortune): a keyboard-driven control panel and a TV-style board
+  synced across windows with no server, spreadsheet question packs parsed in the browser, and a full rules engine.
+
 ## How each project folder is organized
 
 **Excel + R projects** (`nba/`, `nfl/`, `video-games/`, `finance/`):
@@ -87,3 +118,6 @@ wage regression with hand-derived robust standard errors and formal hypothesis t
 
 Excel (formulas, pivot tables, charts) · R (dplyr, ggplot2, rmarkdown/knitr) · SQL (SQLite) ·
 Applied econometrics (OLS, robust standard errors, hypothesis testing)
+
+AI & Automation: Claude Code (multi-agent systems, skills, scoped permissions) · Node.js · SQLite · Python ·
+ffmpeg / WhisperX · Remotion (React + TypeScript) · JavaScript / HTML / CSS

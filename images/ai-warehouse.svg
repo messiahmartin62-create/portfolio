@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <rect width="1600" height="1000" fill="#f3f4f6"/>
+  <g fill="none" stroke="#c7d2fe" stroke-width="6">
+    <rect x="560" y="170" width="480" height="260" rx="28"/>
+    <circle cx="420" cy="300" r="70"/><circle cx="1180" cy="300" r="70"/>
+    <path d="M490 300H560M1040 300H1110"/>
+  </g>
+  <text x="800" y="580" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#1c2530">Warehouse</text>
+  <text x="800" y="670" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="40" fill="#5b6675">Node.js workflow app · Roundtable for AI agents</text>
+  <text x="800" y="750" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="32" fill="#2563eb">Screenshot coming soon</text>
+</svg>
